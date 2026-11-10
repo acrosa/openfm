@@ -178,7 +178,16 @@ final class EngineTests: XCTestCase {
         _ = try render(unit, seconds: 1.0)
         XCTAssertEqual(peak(try render(unit, seconds: 1.0)), 0, accuracy: 1e-3, "muted")
         unit.looperSetLayer(0, muted: false)
-        XCTAssertGreaterThan(peak(try render(unit, seconds: 1.0)), 0.05)
+        let full = peak(try render(unit, seconds: 1.0))
+        XCTAssertGreaterThan(full, 0.05)
+
+        // A layer has its own volume.
+        unit.looperSetLayer(0, volume: 0.5)
+        _ = try render(unit, seconds: 1.0)
+        let half = peak(try render(unit, seconds: 1.0))
+        XCTAssertEqual(half, full * 0.25, accuracy: full * 0.06, "volume 50 is a quarter of the amplitude")
+        unit.looperSetLayer(0, volume: 1)
+        _ = try render(unit, seconds: 1.0)
 
         unit.looperClearLayer(0)
         _ = try render(unit, seconds: 1.0)

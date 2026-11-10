@@ -33,6 +33,13 @@ class Looper {
   static constexpr int kLayers = 4;
   static constexpr int kMaxEvents = 512;
 
+  /// One note-on or note-off at a position in the loop.
+  struct Event {
+    double beat;
+    uint8_t status, data1, data2;
+    uint32_t pass;  // the pass it was recorded in
+  };
+
   struct State {
     bool playing = false;
     bool countingIn = false;
@@ -73,10 +80,48 @@ class Looper {
     requestClear_.fetch_or(1u << layer, std::memory_order_release);
   }
 
+  /// Playback level of a layer, 0...1. 1 is as recorded.
+  void setVolume(int layer, float volume) {
+    if (layer < 0 || layer >= kLayers) return;
+    volume_[layer].store(std::fmin(std::fmax(volume, 0.0f), 1.0f), std::memory_order_relaxed);
+  }
+
   void setMuted(int layer, bool muted) {
     if (layer < 0 || layer >= kLayers) return;
     if (muted) muted_.fetch_or(1u << layer, std::memory_order_release);
     else muted_.fetch_and(~(1u << layer), std::memory_order_release);
+  }
+
+  /// Copies a finished layer's events. Call from a non-realtime thread, and
+  /// only for a layer that is not being recorded: its events do not change.
+  int copyEvents(int layer, Event *out, int capacity) const {
+    if (layer < 0 || layer >= kLayers) return 0;
+    const int count = std::min(stateCount_[layer].load(std::memory_order_acquire), capacity);
+    for (int i = 0; i < count; i++) out[i] = layers_[layer].events[i];
+    return count;
+  }
+
+  /// Replaces a layer's events and sound, for example when restoring a saved
+  /// loop or after editing its notes. Handed to the render thread, which
+  /// swaps it in at the start of its next buffer.
+  /// - Returns: false if an earlier load for this layer has not been taken yet.
+  bool load(int layer, const Event *events, int count, const uint8_t patch[Engine::kPatchSize],
+            const float fx[Engine::kFxCount]) {
+    if (layer < 0 || layer >= kLayers) return false;
+    Pending &p = pending_[layer];
+    int expected = 0;
+    if (!p.state.compare_exchange_strong(expected, 2, std::memory_order_acq_rel)) return false;
+    p.count = std::min(count, kMaxEvents);
+    for (int i = 0; i < p.count; i++) {
+      p.events[i] = events[i];
+      p.events[i].pass = 0;
+    }
+    if (patch) layers_[layer].engine->loadPatch(patch);
+    if (fx) {
+      for (int i = 0; i < Engine::kFxCount; i++) layers_[layer].engine->setFx(i, fx[i]);
+    }
+    p.state.store(1, std::memory_order_release);
+    return true;
   }
 
   State state() const {
@@ -109,13 +154,17 @@ class Looper {
     if (on) {
       if (quantize_.load(std::memory_order_relaxed)) at = std::round(at / kGrid) * kGrid;
       shift_[note] = at - position_;
-      if (at >= length) at -= length;  // snapped onto the downbeat of the next pass
+      wrapped_[note] = at >= length;
+      if (wrapped_[note]) at -= length;  // snapped onto the downbeat of the next pass
       held_[note] = true;
       layer.events[layer.count++] = {at, 0x90, (uint8_t)note, data2, pass_};
     } else {
       if (!held_[note]) return;
       held_[note] = false;
-      at = std::fmin(position_ + shift_[note], length - 0.001);
+      at = position_ + shift_[note];
+      // A note snapped onto the next downbeat ends shortly after it.
+      if (wrapped_[note]) at = std::fmax(at - length, 0.0) + 0.05;
+      at = std::fmin(at, length - 0.001);
       layer.events[layer.count++] = {at, 0x80, (uint8_t)note, 0, pass_};
     }
   }
@@ -176,12 +225,6 @@ class Looper {
   enum Phase { kStopped = 0, kCountIn = 1, kRunning = 2 };
   static constexpr double kGrid = 0.25;  // sixteenth notes
 
-  struct Event {
-    double beat;
-    uint8_t status, data1, data2;
-    uint32_t pass;  // the pass it was recorded in
-  };
-
   struct Layer {
     std::unique_ptr<Engine> engine;
     Event events[kMaxEvents];
@@ -202,6 +245,20 @@ class Looper {
       silence(layers_[i]);
       if (recording_ == i) recording_ = -1;
       if (armed_ == i) armed_ = -1;
+    }
+
+    // Loops handed over by load().
+    for (int i = 0; i < kLayers; i++) {
+      Pending &p = pending_[i];
+      if (p.state.load(std::memory_order_acquire) != 1) continue;
+      if (recording_ != i) {
+        Layer &layer = layers_[i];
+        layer.count = p.count;
+        std::memcpy(layer.events, p.events, sizeof(Event) * (size_t)p.count);
+        layer.hasContent = p.count > 0;
+        silence(layer);
+      }
+      p.state.store(0, std::memory_order_release);
     }
 
     const uint32_t muted = muted_.load(std::memory_order_acquire);
@@ -284,12 +341,17 @@ class Looper {
     int done = 0;
     while (done < frames) {
       const int count = std::min(frames - done, (int)N);
-      for (auto &layer : layers_) {
+      for (int k = 0; k < kLayers; k++) {
+        Layer &layer = layers_[k];
         if (layer.count == 0 && layer.engine->activeVoices() == 0 && tailFrames_ <= 0 && !layer.hasContent) continue;
         layer.engine->render(l, r, count);
+        // Squared for an even-feeling fader, glided so a drag never clicks.
+        const float v = volume_[k].load(std::memory_order_relaxed);
+        const float target = v * v;
         for (int i = 0; i < count; i++) {
-          left[done + i] += l[i];
-          right[done + i] += r[i];
+          gain_[k] += (target - gain_[k]) * 0.002f;
+          left[done + i] += l[i] * gain_[k];
+          right[done + i] += r[i] * gain_[k];
         }
       }
       done += count;
@@ -318,6 +380,7 @@ class Looper {
     uint32_t content = 0;
     for (int i = 0; i < kLayers; i++) {
       if (layers_[i].hasContent) content |= 1u << i;
+      stateCount_[i].store(layers_[i].hasContent && recording_ != i ? layers_[i].count : 0, std::memory_order_release);
     }
     stateContent_.store(content, std::memory_order_relaxed);
     statePhase_.store(phase_, std::memory_order_relaxed);
@@ -335,11 +398,20 @@ class Looper {
   std::atomic<int> requestRecord_{-1};
   std::atomic<uint32_t> requestClear_{0};
   std::atomic<uint32_t> muted_{0};
+  std::atomic<float> volume_[kLayers] = {1.0f, 1.0f, 1.0f, 1.0f};
   std::atomic<int> statePhase_{kStopped};
   std::atomic<int> stateRecording_{-1};
   std::atomic<int> stateArmed_{-1};
   std::atomic<double> statePosition_{0};
   std::atomic<uint32_t> stateContent_{0};
+  std::atomic<int> stateCount_[kLayers] = {};
+
+  struct Pending {
+    std::atomic<int> state{0};  // 0 free, 2 being written, 1 ready for the render thread
+    Event events[kMaxEvents];
+    int count = 0;
+  };
+  Pending pending_[kLayers];
 
   // Render thread.
   Layer layers_[kLayers];
@@ -351,7 +423,9 @@ class Looper {
   int recording_ = -1;
   int armed_ = -1;
   uint32_t seenMuted_ = 0;
+  float gain_[kLayers] = {1.0f, 1.0f, 1.0f, 1.0f};
   bool held_[128] = {};
+  bool wrapped_[128] = {};
   double shift_[128] = {};
   long tailFrames_ = 0;
   float clickPhase_ = 0, clickStep_ = 0, clickLevel_ = 0;

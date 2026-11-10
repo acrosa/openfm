@@ -531,6 +531,45 @@ struct RenderState {
 - (void)looperSetPlaying:(BOOL)playing { _render->looper.setPlaying(playing); }
 - (void)looperClearLayer:(NSInteger)layer { _render->looper.clear((int)layer); }
 - (void)looperSetLayer:(NSInteger)layer muted:(BOOL)muted { _render->looper.setMuted((int)layer, muted); }
+- (void)looperSetLayer:(NSInteger)layer volume:(float)volume { _render->looper.setVolume((int)layer, volume); }
+
+// Events cross the bridge as 16-byte records: a double beat, then status,
+// data1, data2 and a zero byte, then four bytes of padding.
+struct PackedEvent {
+    double beat;
+    uint8_t status, data1, data2, zero;
+    uint32_t padding;
+};
+
+- (NSData *)looperEventsForLayer:(NSInteger)layer {
+    std::vector<Looper::Event> events(Looper::kMaxEvents);
+    const int count = _render->looper.copyEvents((int)layer, events.data(), Looper::kMaxEvents);
+    NSMutableData *data = [NSMutableData dataWithLength:sizeof(PackedEvent) * (NSUInteger)count];
+    PackedEvent *out = (PackedEvent *)data.mutableBytes;
+    for (int i = 0; i < count; i++) {
+        out[i] = {events[i].beat, events[i].status, events[i].data1, events[i].data2, 0, 0};
+    }
+    return data;
+}
+
+- (BOOL)looperLoadLayer:(NSInteger)layer events:(NSData *)events patch:(NSData *)patch effects:(NSArray<NSNumber *> *)effects {
+    if (patch.length < Engine::kPatchSize) return NO;
+    const int count = (int)(events.length / sizeof(PackedEvent));
+    const PackedEvent *in = (const PackedEvent *)events.bytes;
+    std::vector<Looper::Event> list((size_t)count);
+    for (int i = 0; i < count; i++) list[i] = {in[i].beat, in[i].status, in[i].data1, in[i].data2, 0};
+    float fx[Engine::kFxCount];
+    for (int i = 0; i < Engine::kFxCount; i++) {
+        fx[i] = i < (int)effects.count ? effects[i].floatValue : _engine->fx(i);
+    }
+    // The render thread takes a pending load within one buffer; wait briefly
+    // if the previous one for this layer is still there.
+    for (int attempt = 0; attempt < 60; attempt++) {
+        if (_render->looper.load((int)layer, list.data(), count, (const uint8_t *)patch.bytes, fx)) return YES;
+        usleep(1000);
+    }
+    return NO;
+}
 
 - (OpenFMLooperState)looperState {
     const Looper::State s = _render->looper.state();

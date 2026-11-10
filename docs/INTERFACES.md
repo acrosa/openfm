@@ -90,7 +90,9 @@ a plug-in host record automation, and it drives `focus` and `affectedOps`.
 recorded with. `looper.record()`, `looper.togglePlay()`, `looper.toggleMute(n)`,
 `looper.clear(n)`; read `looper.layers`, `looper.progress`, `looper.countIn`,
 `looper.recordingLayer`; set `looper.tempo`, `looper.bars`, `looper.metronome`,
-`looper.quantize`. An interface that doesn't want it simply ignores it; a
+`looper.quantize`. Notes are editable (`looper.layers[n].notes`,
+`looper.setNotes(n, to:)`), loops are saved automatically, and
+`looper.exportAudio()` / `looper.exportMIDI()` return files to share. An interface that doesn't want it simply ignores it; a
 plug-in should not show it, since the host records.
 
 ## Simple first, deep when wanted

@@ -157,6 +157,122 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(try voices(), 0)
     }
 
+    // MARK: Looper
+
+    private func makeRunningModel() throws -> (SynthModel, () throws -> Void) {
+        let unit = try OpenFMAudioUnit(componentDescription: OpenFMAudioUnit.openFMDescription, options: [])
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2))
+        try unit.outputBusses[0].setFormat(format)
+        try unit.allocateRenderResources()
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 512))
+        buffer.frameLength = 512
+        let block = unit.renderBlock
+        var time = AudioTimeStamp()
+        time.mFlags = .sampleTimeValid
+        /// Renders a tenth of a second.
+        let tick = {
+            var flags = AudioUnitRenderActionFlags()
+            for _ in 0..<10 {
+                _ = block(&flags, &time, 512, 0, buffer.mutableAudioBufferList, nil)
+                time.mSampleTime += 512
+            }
+        }
+        return (SynthModel(audioUnit: unit), tick)
+    }
+
+    /// Record a loop through the model, and the notes come back editable,
+    /// survive a restart, and export.
+    func testLooperKeepsEditsSavesAndExports() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let (model, tick) = try makeRunningModel()
+        model.load(FactoryPresets.all.first { $0.name == "Solid Bass" }!)
+        let looper = Looper(synth: model, directory: directory)
+        looper.tempo = 240          // one-second count-in
+        looper.bars = 1             // one-second loop
+        XCTAssertEqual(looper.record(), 0)
+
+        for _ in 0..<11 { try tick() }          // count-in, then just into the pass
+        looper.refresh()
+        XCTAssertEqual(looper.recordingLayer, 0)
+        model.noteOn(48, velocity: 90)
+        for _ in 0..<2 { try tick() }
+        model.noteOff(48)
+        for _ in 0..<9 { try tick() }           // to the end of the pass
+        looper.refresh()
+
+        // What was played is there as a note, on the grid.
+        XCTAssertNil(looper.recordingLayer)
+        let layer = looper.layers[0]
+        XCTAssertEqual(layer.sound, "Solid Bass")
+        XCTAssertEqual(layer.notes.count, 1)
+        XCTAssertEqual(layer.notes[0].note, 48)
+        XCTAssertEqual(layer.notes[0].velocity, 90)
+        XCTAssertEqual(layer.notes[0].start.truncatingRemainder(dividingBy: Looper.grid), 0, accuracy: 1e-9)
+
+        // Edit: move the note up a fifth and add another.
+        var edited = layer.notes
+        edited[0].note = 55
+        edited.append(LoopNote(start: 2, length: 0.5, note: 60))
+        looper.setNotes(0, to: edited)
+        for _ in 0..<2 { try tick() }
+        XCTAssertEqual(looper.layers[0].notes.map(\.note), [55, 60])
+        XCTAssertEqual(Looper.notes(from: model.audioUnit.looperEvents(forLayer: 0), length: 4).map(\.note), [55, 60],
+                       "the engine plays the edited notes")
+        looper.setVolume(0, to: 0.6)
+
+        // A new session finds the loop again, sound and settings included.
+        let (model2, tick2) = try makeRunningModel()
+        let reopened = Looper(synth: model2, directory: directory)
+        XCTAssertEqual(reopened.tempo, 240)
+        XCTAssertEqual(reopened.bars, 1)
+        XCTAssertEqual(reopened.layers[0].notes.map(\.note), [55, 60])
+        XCTAssertEqual(reopened.layers[0].sound, "Solid Bass")
+        XCTAssertEqual(reopened.layers[0].volume, 0.6)
+        XCTAssertEqual(reopened.layers[0].patch, FactoryPresets.all.first { $0.name == "Solid Bass" })
+        try tick2()
+        XCTAssertEqual(model2.audioUnit.looperState.contentMask, 1, "the engine has it too")
+
+        // MIDI: a header, a tempo track and one track for the layer.
+        let midi = try reopened.midiFileData()
+        XCTAssertEqual(String(decoding: midi.prefix(4), as: UTF8.self), "MThd")
+        XCTAssertEqual(midi[11], 2, "two tracks")
+        XCTAssertNotNil(midi.range(of: Data("Solid Bass".utf8)))
+        XCTAssertNotNil(midi.range(of: Data([0x90, 55, 90])), "the edited note is in the file, at the velocity it was played")
+
+        // Audio: a real file with sound in it, as long as the loops plus the tail.
+        let wav = try reopened.exportAudio(repeats: 2)
+        let file = try AVAudioFile(forReading: wav)
+        XCTAssertEqual(Double(file.length) / file.fileFormat.sampleRate, 5, accuracy: 0.1)
+        let audio = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
+        try file.read(into: audio)
+        var loudest: Float = 0
+        for i in 0..<Int(audio.frameLength) { loudest = max(loudest, abs(audio.floatChannelData![0][i])) }
+        XCTAssertGreaterThan(loudest, 0.05)
+
+        // Deleting every note clears the layer, on disk as well.
+        reopened.setNotes(0, to: [])
+        XCTAssertFalse(reopened.hasContent)
+        XCTAssertFalse(Looper(synth: model2, directory: directory).hasContent)
+        XCTAssertThrowsError(try reopened.exportMIDI())
+    }
+
+    func testLoopNotesConvertToEngineEventsAndBack() {
+        let notes = [LoopNote(start: 0, length: 0.5, note: 40, velocity: 110),
+                     LoopNote(start: 0, length: 1, note: 52, velocity: 80),
+                     LoopNote(start: 3.75, length: 0.25, note: 40, velocity: 64)]
+        let back = Looper.notes(from: Looper.events(from: notes, length: 4), length: 4)
+        XCTAssertEqual(back.count, 3)
+        for (a, b) in zip(notes, back) {
+            XCTAssertEqual(a.note, b.note)
+            XCTAssertEqual(a.velocity, b.velocity)
+            XCTAssertEqual(a.start, b.start, accuracy: 1e-9)
+            XCTAssertEqual(a.length, b.length, accuracy: 0.002)
+        }
+    }
+
     func testPatchFormatsReadSysExAndOpenFMFiles() throws {
         let patch = FactoryPresets.all[5]
         let json = try OpenFMPatchFormat.data(for: patch)

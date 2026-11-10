@@ -25,7 +25,7 @@ public final class OpenFMSession {
         host = try AudioHost()
         presets = PresetStore()
         synth = SynthModel(audioUnit: host.audioUnit)
-        looper = Looper(synth: synth)
+        looper = Looper(synth: synth, directory: PresetStore.defaultDirectory)
         if let first = presets.all.first(where: { $0.patch.name == initialPreset }) ?? presets.all.first {
             synth.load(first.patch, presetID: first.id)
         }

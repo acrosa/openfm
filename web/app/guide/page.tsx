@@ -294,18 +294,29 @@ export default function Guide() {
                 <div className="why">Recording waits for the loop to come round, so the layers stay lined up. The first layer still plays its own sound.</div>
               </div></li>
               <li><div>
-                <div className="do">Tap a layer to mute it. Touch and hold it to clear it. <K>■</K> stops everything.</div>
-                <div className="why">Muting layers in and out is the simplest way to turn a loop into an arrangement.</div>
+                <div className="do">Tap a layer to mute it. Drag it up or down to set its volume. Touch and hold it to clear it. <K>■</K> stops everything.</div>
+                <div className="why">The fill inside a layer is its level, like an operator in the diagram. Muting layers in and out is the simplest way to turn a loop into an arrangement.</div>
               </div></li>
               <li><div>
                 <div className="do">Tap <K>112 BPM</K> for tempo, loop length (1, 2 or 4 bars), the click, and snap.</div>
                 <div className="why">Snap moves your notes onto the nearest sixteenth, so a slightly loose take still loops tightly. Set the length before you record the first layer.</div>
               </div></li>
             </ol>
-            <p className="prose" style={{ marginTop: 20 }}>
-              Loops live only while the app is open, and they can't be edited note by note or exported. For that, use
-              a host.
-            </p>
+            <h3>Fix a note, keep the loop, take it with you</h3>
+            <ol className="steps">
+              <li><div>
+                <div className="do">Touch and hold a layer and choose <K>Edit Notes…</K>.</div>
+                <div className="why">The loop opens as a grid: time runs left to right, pitch bottom to top. Tap an empty square to add a note, drag a note to move it, select it to make it shorter, longer or delete it. The loop keeps playing while you edit.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Close the app whenever you like.</div>
+                <div className="why">Loops are saved as you go, with their sounds, levels and tempo, and are there when you come back.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Tap <K>112 BPM</K> → <K>Audio</K> or <K>MIDI</K> to share the loop.</div>
+                <div className="why">Audio is a WAV file of the loop exactly as it plays, ready to send to anyone. MIDI is the notes, one track per layer, for opening in GarageBand, Logic or any other sequencer.</div>
+              </div></li>
+            </ol>
             <h3>In a host, with GarageBand (free)</h3>
             <p className="prose">
               For full songs, run OpenFM inside a host app as a plug-in. The host records; OpenFM makes the sound.

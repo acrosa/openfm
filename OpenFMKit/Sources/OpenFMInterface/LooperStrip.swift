@@ -8,7 +8,8 @@ import SwiftUI
 ///
 /// Record → a one-bar count → play for one loop → it loops by itself. Pick
 /// another sound and record again to add a layer; every layer keeps the sound
-/// it was recorded with. Tap a layer to mute it, hold it to clear it.
+/// it was recorded with. Tap a layer to mute it, drag it up or down for its
+/// volume, hold it to clear it.
 struct LooperStrip: View {
     @Environment(SynthModel.self) private var model
     let looper: Looper
@@ -122,56 +123,91 @@ struct LooperStrip: View {
     }
 }
 
-/// One loop layer: its number, the sound it holds, and a playhead.
+/// One loop layer: its number, the sound it holds, its level and a playhead.
+///
+/// Like an operator in the diagram, the fill is the level and dragging up or
+/// down changes it. Tap mutes; touch and hold clears.
 private struct LayerTile: View {
     let looper: Looper
     let layer: Looper.Layer
+
+    @State private var startVolume: Double?
+    @State private var isEditing = false
+    @GestureState private var isDragging = false
 
     var body: some View {
         let recording = looper.recordingLayer == layer.id
         let waiting = looper.armedLayer == layer.id
         let playing = looper.isPlaying && layer.hasContent && !layer.isMuted
+        let adjusting = startVolume != nil
+        let shape = RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
 
-        Button {
-            if layer.hasContent {
-                looper.toggleMute(layer.id)
-                Haptics.tap()
-            }
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(layer.id + 1)")
-                    .font(.value(13, weight: .semibold))
-                    .foregroundStyle(recording ? Theme.background : (layer.hasContent ? Theme.accent : Theme.tertiary))
-                Text(caption(recording: recording, waiting: waiting))
-                    .font(.value(12))
-                    .foregroundStyle(recording ? Theme.background : (layer.hasContent ? Theme.text : Theme.tertiary))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
-            .background(recording ? Theme.accent : Theme.surface)
-            .overlay(alignment: .bottomLeading) {
-                // Where the loop is.
-                GeometryReader { geo in
-                    Theme.accent
-                        .frame(width: geo.size.width * (playing ? looper.progress : 0), height: 2)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
-            .overlay {
-                if waiting {
-                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).strokeBorder(Theme.accent, lineWidth: 1.5)
-                }
-            }
-            .opacity(layer.isMuted ? 0.45 : 1)
-            .contentShape(Rectangle())
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("\(layer.id + 1)")
+                .font(.value(13, weight: .semibold))
+                .foregroundStyle(recording ? Theme.background : (layer.hasContent ? Theme.accent : Theme.tertiary))
+            Text(adjusting ? "VOL \(Int((layer.volume * 100).rounded()))" : caption(recording: recording, waiting: waiting))
+                .font(.value(12))
+                .foregroundStyle(recording ? Theme.background : (adjusting ? Theme.accent : (layer.hasContent ? Theme.text : Theme.tertiary)))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
+        .background {
+            ZStack(alignment: .bottom) {
+                recording ? Theme.accent : Theme.surface
+                // The fill height is the layer's level.
+                if layer.hasContent, !recording {
+                    (adjusting ? Theme.accent : Theme.text)
+                        .opacity(adjusting ? 0.28 : 0.1)
+                        .frame(height: 44 * layer.volume)
+                }
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            // Where the loop is.
+            GeometryReader { geo in
+                Theme.accent
+                    .frame(width: geo.size.width * (playing ? looper.progress : 0), height: 2)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+            }
+        }
+        .clipShape(shape)
+        .overlay {
+            if waiting || adjusting { shape.strokeBorder(Theme.accent, lineWidth: 1.5) }
+        }
+        .opacity(layer.isMuted ? 0.45 : 1)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard layer.hasContent else { return }
+            looper.toggleMute(layer.id)
+            Haptics.tap()
+        }
+        .gesture(
+            DragGesture(minimumDistance: 6)
+                .updating($isDragging) { _, state, _ in state = true }
+                .onChanged { g in
+                    guard layer.hasContent else { return }
+                    if startVolume == nil {
+                        startVolume = layer.volume
+                        Haptics.grab()
+                    }
+                    let before = Int((layer.volume * 100).rounded())
+                    looper.setVolume(layer.id, to: (startVolume ?? 1) - g.translation.height / 120)
+                    let after = Int((looper.layers[layer.id].volume * 100).rounded())
+                    if after != before {
+                        if after == 0 || after == 100 { Haptics.bump() } else if after % 5 == 0 { Haptics.tick() }
+                    }
+                }
+        )
+        .onChange(of: isDragging) { _, dragging in
+            if !dragging { startVolume = nil }
+        }
         .contextMenu {
             if layer.hasContent {
+                Button("Edit Notes…", systemImage: "square.grid.3x3") { isEditing = true }
                 Button(layer.isMuted ? "Unmute" : "Mute", systemImage: layer.isMuted ? "speaker.wave.2" : "speaker.slash") {
                     looper.toggleMute(layer.id)
                 }
@@ -181,10 +217,19 @@ private struct LayerTile: View {
                 }
             }
         }
+        .accessibilityElement()
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Loop \(layer.id + 1)")
         .accessibilityValue(value(recording: recording, waiting: waiting))
-        .accessibilityHint(layer.hasContent ? "Tap to mute. Touch and hold to clear" : "")
+        .accessibilityHint(layer.hasContent ? "Tap to mute. Drag up or down for volume. Touch and hold to edit or clear" : "")
+        .accessibilityAdjustableAction { direction in
+            looper.setVolume(layer.id, to: layer.volume + (direction == .increment ? 0.1 : -0.1))
+        }
         .accessibilityAction(named: "Clear") { looper.clear(layer.id) }
+        .accessibilityAction(named: "Edit notes") { if layer.hasContent { isEditing = true } }
+        .sheet(isPresented: $isEditing) {
+            LoopEditor(looper: looper, layer: layer.id)
+        }
     }
 
     private func caption(recording: Bool, waiting: Bool) -> String {
@@ -197,7 +242,8 @@ private struct LayerTile: View {
         if recording { return "Recording" }
         if waiting { return "Waiting to record" }
         guard layer.hasContent else { return "Empty" }
-        return "\(layer.sound ?? "Loop")\(layer.isMuted ? ", muted" : "")"
+        let volume = layer.volume < 0.995 ? ", volume \(Int((layer.volume * 100).rounded()))" : ""
+        return "\(layer.sound ?? "Loop")\(volume)\(layer.isMuted ? ", muted" : "")"
     }
 }
 
@@ -205,6 +251,8 @@ private struct LayerTile: View {
 private struct LooperSettings: View {
     let looper: Looper
     @State private var startTempo: Double?
+    @State private var shared: SharedFile?
+    @State private var exportError: String?
 
     var body: some View {
         @Bindable var looper = looper
@@ -246,13 +294,39 @@ private struct LooperSettings: View {
                 .font(.prose(13))
                 .foregroundStyle(Theme.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                QuietButton(title: "Audio", symbol: "square.and.arrow.up") { export { try looper.exportAudio() } }
+                    .accessibilityLabel("Share loop as audio")
+                QuietButton(title: "MIDI", symbol: "square.and.arrow.up") { export { try looper.exportMIDI() } }
+                    .accessibilityLabel("Share loop as MIDI")
+            }
+            .opacity(looper.hasContent ? 1 : 0.45)
+            .disabled(!looper.hasContent)
             QuietButton(title: "Clear all loops", symbol: "trash") { looper.clearAll() }
                 .opacity(looper.hasContent ? 1 : 0.45)
                 .disabled(!looper.hasContent)
         }
+        .sheet(item: $shared) { file in
+            ShareSheet(url: file.url)
+        }
+        .alert("Couldn’t Export", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
+        }
         .padding(16)
         .frame(width: 300)
         .background(Theme.background)
+    }
+
+    private func export(_ make: () throws -> URL) {
+        do {
+            shared = SharedFile(url: try make())
+            Haptics.success()
+        } catch {
+            exportError = error.localizedDescription
+            Haptics.failure()
+        }
     }
 
     private func cell(_ caption: String, _ value: String, active: Bool = false) -> some View {

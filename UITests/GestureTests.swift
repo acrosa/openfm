@@ -17,6 +17,14 @@ final class GestureTests: XCTestCase {
         app.launch()
     }
 
+    override func tearDown() {
+        // Leave no loops behind for the next test or the next person.
+        if app.state == .runningForeground, element("Loop settings").exists, (element("Loop 1").value as? String) != "Empty" {
+            element("Loop settings").tap()
+            if app.buttons["Clear all loops"].isEnabled { app.buttons["Clear all loops"].tap() }
+        }
+    }
+
     /// The simple side: a macro moves, the sound is marked as adjusted, and
     /// double-tap puts it back.
     func testPlayModeMacros() {
@@ -156,6 +164,13 @@ final class GestureTests: XCTestCase {
         first.tap()
         XCTAssertEqual(first.value as? String, "Glass Keys")
 
+        // Dragging a layer down lowers its volume; back up restores it.
+        let tile = first.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        tile.press(forDuration: 0.1, thenDragTo: tile.withOffset(CGVector(dx: 0, dy: 60)))
+        XCTAssertEqual(first.value as? String, "Glass Keys, volume 50")
+        tile.press(forDuration: 0.1, thenDragTo: tile.withOffset(CGVector(dx: 0, dy: -100)))
+        XCTAssertEqual(first.value as? String, "Glass Keys")
+
         // A second layer with a different sound; the first keeps its own.
         app.buttons["Felt Tines"].tap()
         record.tap()
@@ -168,7 +183,24 @@ final class GestureTests: XCTestCase {
         XCTAssertEqual(first.value as? String, "Glass Keys")
         attach("two loop layers")
 
+        // Loops survive closing the app.
+        app.terminate()
+        app.launch()
+        let restored = element("Loop 1")
+        XCTAssertTrue(restored.waitForExistence(timeout: 10))
+        XCTAssertEqual(restored.value as? String, "Glass Keys")
+        XCTAssertEqual(element("Loop 2").value as? String, "Felt Tines")
+
+        // The note editor opens from a layer and shows the grid.
+        restored.press(forDuration: 1.0)
+        app.buttons["Edit Notes…"].tap()
+        XCTAssertTrue(element("Note grid").waitForExistence(timeout: 5))
+        attach("loop note editor")
+        app.buttons["Done"].tap()
+
         element("Loop settings").tap()
+        XCTAssertTrue(app.buttons["Share loop as audio"].exists)
+        XCTAssertTrue(app.buttons["Share loop as MIDI"].exists)
         app.buttons["Clear all loops"].tap()
         XCTAssertEqual(element("Loop 1").value as? String, "Empty")
     }

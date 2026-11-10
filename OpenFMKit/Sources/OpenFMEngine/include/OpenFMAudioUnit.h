@@ -88,7 +88,16 @@ NS_SWIFT_SENDABLE
 - (void)looperSetPlaying:(BOOL)playing;
 - (void)looperClearLayer:(NSInteger)layer;
 - (void)looperSetLayer:(NSInteger)layer muted:(BOOL)muted;
+/// Playback level of a layer, 0...1; 1 is as recorded.
+- (void)looperSetLayer:(NSInteger)layer volume:(float)volume;
 @property (nonatomic, readonly) OpenFMLooperState looperState;
+/// A recorded layer's events as 16-byte records: a `double` beat, then
+/// status, data1 and data2 bytes, then five bytes of padding.
+- (NSData *)looperEventsForLayer:(NSInteger)layer;
+/// Replaces a layer's events and sound: used to restore saved loops and to
+/// apply edits. `patch` is 156 voice bytes; `effects` follows the effect
+/// address order from OpenFMAddressChorusMix.
+- (BOOL)looperLoadLayer:(NSInteger)layer events:(NSData *)events patch:(NSData *)patch effects:(NSArray<NSNumber *> *)effects;
 
 /// Copies the latest `count` output samples for the oscilloscope.
 - (void)copyScopeInto:(float *)buffer count:(NSInteger)count;
