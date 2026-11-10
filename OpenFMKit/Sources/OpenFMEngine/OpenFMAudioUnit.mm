@@ -125,11 +125,19 @@ inline void handleUMP(Engine *engine, const UInt32 *words, int count) {
     }
 }
 
+// Buffers the render block falls back to when the host supplies none.
+// The block holds a pointer to this struct, never to the buffers themselves:
+// a host may ask for the render block before render resources are allocated,
+// so anything captured by value at that moment would be empty for ever.
+struct RenderState {
+    std::vector<float> scratch[2];
+};
+
 }  // namespace
 
 @implementation OpenFMAudioUnit {
     std::unique_ptr<Engine> _engine;
-    std::vector<float> _scratch[2];
+    std::unique_ptr<RenderState> _render;
     AUAudioUnitBus *_outputBus;
     AUAudioUnitBusArray *_outputBusArray;
     AUParameterTree *_tree;
@@ -163,6 +171,7 @@ inline void handleUMP(Engine *engine, const UInt32 *words, int count) {
     if (!self) return nil;
 
     _engine = std::make_unique<Engine>();
+    _render = std::make_unique<RenderState>();
     _patchName = @"Init Voice";
 
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000 channels:2];
@@ -272,8 +281,8 @@ inline void handleUMP(Engine *engine, const UInt32 *words, int count) {
 - (BOOL)allocateRenderResourcesAndReturnError:(NSError **)outError {
     if (![super allocateRenderResourcesAndReturnError:outError]) return NO;
     _engine->prepare(_outputBus.format.sampleRate);
-    _scratch[0].assign(self.maximumFramesToRender, 0.0f);
-    _scratch[1].assign(self.maximumFramesToRender, 0.0f);
+    _render->scratch[0].assign(self.maximumFramesToRender, 0.0f);
+    _render->scratch[1].assign(self.maximumFramesToRender, 0.0f);
     return YES;
 }
 
@@ -283,9 +292,7 @@ inline void handleUMP(Engine *engine, const UInt32 *words, int count) {
 
 - (AUInternalRenderBlock)internalRenderBlock {
     Engine *engine = _engine.get();
-    float *scratchL = _scratch[0].data();
-    float *scratchR = _scratch[1].data();
-    const AUAudioFrameCount capacity = (AUAudioFrameCount)_scratch[0].size();
+    RenderState *state = _render.get();
 
     return ^AUAudioUnitStatus(AudioUnitRenderActionFlags *actionFlags,
                               const AudioTimeStamp *timestamp,
@@ -294,7 +301,10 @@ inline void handleUMP(Engine *engine, const UInt32 *words, int count) {
                               AudioBufferList *outputData,
                               const AURenderEvent *realtimeEventListHead,
                               AURenderPullInputBlock __unsafe_unretained pullInputBlock) {
-        if (frameCount > capacity) return kAudioUnitErr_TooManyFramesToProcess;
+        // Read at render time: these are sized in allocateRenderResources.
+        float *scratchL = state->scratch[0].data();
+        float *scratchR = state->scratch[1].data();
+        if (frameCount > state->scratch[0].size()) return kAudioUnitErr_TooManyFramesToProcess;
 
         const UInt32 byteSize = frameCount * sizeof(float);
         const bool stereo = outputData->mNumberBuffers > 1;
