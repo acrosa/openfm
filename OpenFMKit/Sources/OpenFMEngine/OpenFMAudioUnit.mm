@@ -7,6 +7,7 @@
 #import <CoreMIDI/CoreMIDI.h>
 
 #include <algorithm>
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -131,6 +132,23 @@ inline void handleUMP(Engine *engine, const UInt32 *words, int count) {
 // so anything captured by value at that moment would be empty for ever.
 struct RenderState {
     std::vector<float> scratch[2];
+
+    // Notes played on the plug-in's own keyboard, forwarded to the host as
+    // MIDI output so it can record them. Single producer (the main thread),
+    // single consumer (the render thread), wait-free.
+    static constexpr uint32_t kOutSize = 256;
+    std::atomic<uint32_t> outHead{0};
+    std::atomic<uint32_t> outTail{0};
+    uint32_t outItems[kOutSize];
+    AUMIDIOutputEventBlock midiOut = nil;
+
+    void push(uint8_t status, uint8_t d1, uint8_t d2) {
+        const uint32_t head = outHead.load(std::memory_order_relaxed);
+        const uint32_t next = (head + 1) % kOutSize;
+        if (next == outTail.load(std::memory_order_acquire)) return;
+        outItems[head] = (uint32_t)status | ((uint32_t)d1 << 8) | ((uint32_t)d2 << 16);
+        outHead.store(next, std::memory_order_release);
+    }
 };
 
 }  // namespace
@@ -277,16 +295,20 @@ struct RenderState {
 - (BOOL)canProcessInPlace { return NO; }
 - (NSArray<NSNumber *> *)channelCapabilities { return @[@0, @2]; }
 - (MIDIProtocolID)AudioUnitMIDIProtocol { return kMIDIProtocol_1_0; }
+- (NSArray<NSString *> *)MIDIOutputNames { return @[@"OpenFM Keyboard"]; }
 
 - (BOOL)allocateRenderResourcesAndReturnError:(NSError **)outError {
     if (![super allocateRenderResourcesAndReturnError:outError]) return NO;
     _engine->prepare(_outputBus.format.sampleRate);
     _render->scratch[0].assign(self.maximumFramesToRender, 0.0f);
     _render->scratch[1].assign(self.maximumFramesToRender, 0.0f);
+    // Set by hosts that listen to the plug-in's MIDI output; nil otherwise.
+    _render->midiOut = self.MIDIOutputEventBlock;
     return YES;
 }
 
 - (void)deallocateRenderResources {
+    _render->midiOut = nil;
     [super deallocateRenderResources];
 }
 
@@ -314,6 +336,21 @@ struct RenderState {
         float *right = stereo ? (float *)outputData->mBuffers[1].mData : scratchR;
         for (UInt32 i = 0; i < outputData->mNumberBuffers; i++) {
             outputData->mBuffers[i].mDataByteSize = byteSize;
+        }
+
+        // Hand the host whatever was played on the plug-in's own keyboard.
+        {
+            uint32_t tail = state->outTail.load(std::memory_order_relaxed);
+            const uint32_t head = state->outHead.load(std::memory_order_acquire);
+            while (tail != head) {
+                if (state->midiOut) {
+                    const uint32_t e = state->outItems[tail];
+                    const uint8_t bytes[3] = {(uint8_t)(e & 0xff), (uint8_t)((e >> 8) & 0xff), (uint8_t)((e >> 16) & 0xff)};
+                    state->midiOut(AUEventSampleTimeImmediate, 0, 3, bytes);
+                }
+                tail = (tail + 1) % RenderState::kOutSize;
+            }
+            state->outTail.store(tail, std::memory_order_release);
         }
 
         const AUEventSampleTime start = (AUEventSampleTime)timestamp->mSampleTime;
@@ -417,11 +454,14 @@ struct RenderState {
 #pragma mark - Performance
 
 - (void)noteOn:(uint8_t)note velocity:(uint8_t)velocity {
-    _engine->pushEvent(Engine::kQueueUI, 0x90, note & 0x7f, std::max<uint8_t>(1, velocity & 0x7f));
+    const uint8_t v = std::max<uint8_t>(1, velocity & 0x7f);
+    _engine->pushEvent(Engine::kQueueUI, 0x90, note & 0x7f, v);
+    _render->push(0x90, note & 0x7f, v);
 }
 
 - (void)noteOff:(uint8_t)note {
     _engine->pushEvent(Engine::kQueueUI, 0x80, note & 0x7f, 0);
+    _render->push(0x80, note & 0x7f, 0);
 }
 
 - (void)sendController:(uint8_t)controller value:(uint8_t)value {

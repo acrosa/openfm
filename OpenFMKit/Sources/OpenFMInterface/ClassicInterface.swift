@@ -10,10 +10,14 @@ import SwiftUI
 public struct ClassicInterface: View {
     private let synth: SynthModel
     private let presets: PresetStore
+    private let isPlugIn: Bool
 
-    public init(synth: SynthModel, presets: PresetStore) {
+    /// - Parameter isPlugIn: true inside a host. Hosts record what is played
+    ///   on their own keyboard, so the built-in one says it is for trying sounds.
+    public init(synth: SynthModel, presets: PresetStore, isPlugIn: Bool = false) {
         self.synth = synth
         self.presets = presets
+        self.isPlugIn = isPlugIn
         Typeface.register()
     }
 
@@ -21,5 +25,11 @@ public struct ClassicInterface: View {
         RootView()
             .environment(synth)
             .environment(presets)
+            .environment(\.isPlugIn, isPlugIn)
     }
+}
+
+extension EnvironmentValues {
+    /// True when the interface is running inside a host as an AUv3 plug-in.
+    @Entry var isPlugIn = false
 }

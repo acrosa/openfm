@@ -290,8 +290,8 @@ export default function Guide() {
                 <div className="why">OpenFM opens inside GarageBand with its full interface. Pick Rust Bass.</div>
               </div></li>
               <li><div>
-                <div className="do">Tap an empty cell in that row, choose <K>Record into Cell</K>, and play the bass riff.</div>
-                <div className="why">When you stop, the cell loops what you played, in time.</div>
+                <div className="do">Tap an empty cell in that row, choose <K>Record into Cell</K>, and play the bass riff on <strong>GarageBand's keyboard</strong>, below the OpenFM window.</div>
+                <div className="why">GarageBand records the notes played on its own keyboard, or a connected MIDI keyboard. The keys inside OpenFM's window are for trying sounds and are not recorded. When you stop, the cell loops what you played, in time.</div>
               </div></li>
               <li><div>
                 <div className="do">Add a second OpenFM track, load Siren Lead, and record the melody into a cell on its row.</div>

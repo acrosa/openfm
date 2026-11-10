@@ -10,6 +10,7 @@ import UIKit
 /// keys.
 struct KeyboardSection: View {
     @Environment(SynthModel.self) private var model
+    @Environment(\.isPlugIn) private var isPlugIn
     @State private var octave = 3
 
     var body: some View {
@@ -17,6 +18,12 @@ struct KeyboardSection: View {
             HStack(spacing: 16) {
                 OctaveDial(octave: $octave)
                 Text("OCTAVE").labelStyle(9)
+                if isPlugIn {
+                    // Most hosts only record their own keyboard.
+                    Text("FOR TRYING SOUNDS · RECORD WITH THE HOST’S KEYBOARD")
+                        .labelStyle(9, color: Theme.accent)
+                        .padding(.leading, 8)
+                }
 
                 Spacer(minLength: 0)
 

@@ -48,7 +48,7 @@ public final class AudioUnitViewController: AUViewController, AUAudioUnitFactory
             model.presetID = first.id
         }
         // To ship a different interface in the plug-in, change this line.
-        let controller = UIHostingController(rootView: ClassicInterface(synth: model, presets: store))
+        let controller = UIHostingController(rootView: ClassicInterface(synth: model, presets: store, isPlugIn: true))
         addChild(controller)
         controller.view.frame = view.bounds
         controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
