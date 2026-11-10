@@ -29,6 +29,10 @@ struct LooperStrip: View {
         .onChange(of: looper.countIn) { _, beat in
             if beat != nil { Haptics.tick() }
         }
+        .onChange(of: looper.beatsUntilRecording) { _, beats in
+            // Feel the last bar before recording starts.
+            if let beats, beats <= 4 { Haptics.tick() }
+        }
         .onChange(of: looper.recordingLayer) { old, new in
             if new != nil {
                 Haptics.tap()
@@ -85,9 +89,20 @@ struct LooperStrip: View {
             looper.togglePlay()
             Haptics.tap()
         } label: {
-            Image(systemName: running ? "stop.fill" : "play.fill")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Theme.text)
+            VStack(spacing: 6) {
+                Image(systemName: running ? "stop.fill" : "play.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.text)
+                // The pulse: four marks, one per beat, the downbeat brightest.
+                HStack(spacing: 3) {
+                    ForEach(0..<4, id: \.self) { beat in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(looper.beatInBar == beat ? (beat == 0 ? Theme.accent : Theme.text) : Theme.line)
+                            .frame(width: 6, height: 3)
+                    }
+                }
+                .accessibilityHidden(true)
+            }
                 .frame(width: 52, height: 44)
                 .background(Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
@@ -234,13 +249,20 @@ private struct LayerTile: View {
 
     private func caption(recording: Bool, waiting: Bool) -> String {
         if recording { return "REC" }
-        if waiting { return "NEXT" }
+        if waiting {
+            // Count down to the top of the loop, where recording starts.
+            if let beats = looper.beatsUntilRecording { return "IN \(beats)" }
+            return "NEXT"
+        }
         return layer.hasContent ? (layer.sound ?? "Loop") : "—"
     }
 
     private func value(recording: Bool, waiting: Bool) -> String {
         if recording { return "Recording" }
-        if waiting { return "Waiting to record" }
+        if waiting {
+            if let beats = looper.beatsUntilRecording { return "Recording in \(beats) beat\(beats == 1 ? "" : "s")" }
+            return "Waiting to record"
+        }
         guard layer.hasContent else { return "Empty" }
         let volume = layer.volume < 0.995 ? ", volume \(Int((layer.volume * 100).rounded()))" : ""
         return "\(layer.sound ?? "Loop")\(volume)\(layer.isMuted ? ", muted" : "")"

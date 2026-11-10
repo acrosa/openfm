@@ -291,7 +291,7 @@ export default function Guide() {
               </div></li>
               <li><div>
                 <div className="do">Pick another sound and play along, or tap <K>●</K> again to record it as layer 2.</div>
-                <div className="why">Recording waits for the loop to come round, so the layers stay lined up. The first layer still plays its own sound.</div>
+                <div className="why">Recording waits for the loop to come round, so the layers stay lined up: the layer counts down <K>IN 3</K> <K>IN 2</K> <K>IN 1</K> and the four marks under the play button pulse with the beat. The first layer still plays its own sound.</div>
               </div></li>
               <li><div>
                 <div className="do">Tap a layer to mute it. Drag it up or down to set its volume. Touch and hold it to clear it. <K>■</K> stops everything.</div>

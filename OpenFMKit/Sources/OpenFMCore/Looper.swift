@@ -86,6 +86,12 @@ public final class Looper {
     public private(set) var progress = 0.0
     /// Beats left in the count-in, 4...1, or nil.
     public private(set) var countIn: Int?
+    /// The beat sounding now, 0...3 within its bar, while the loop runs or
+    /// counts in. Drives the pulse an interface shows.
+    public private(set) var beatInBar: Int?
+    /// Beats until the armed layer starts recording, while the loop is
+    /// already playing.
+    public private(set) var beatsUntilRecording: Int?
 
     public var tempo = 112.0 { didSet { push() } }
     public var bars = 2 { didSet { push() } }
@@ -272,6 +278,16 @@ public final class Looper {
         armedLayer = state.armedLayer >= 0 ? state.armedLayer : nil
         countIn = state.countingIn ? max(1, Int((-state.positionBeats).rounded(.up))) : nil
         progress = state.playing && state.lengthBeats > 0 ? min(max(state.positionBeats / state.lengthBeats, 0), 1) : 0
+        if state.playing || state.countingIn {
+            // The count-in runs from -4 to 0, so shift it into the same 0...3.
+            let beat = Int((state.positionBeats + 4 + 1e-6).rounded(.down)) % 4
+            if beatInBar != beat { beatInBar = beat }
+        } else if beatInBar != nil {
+            beatInBar = nil
+        }
+        let waiting = state.playing && armedLayer != nil
+            ? max(1, Int((state.lengthBeats - state.positionBeats).rounded(.up))) : nil
+        if beatsUntilRecording != waiting { beatsUntilRecording = waiting }
 
         // A recording just finished: collect what was played.
         if let done = wasRecording, recordingLayer != done {

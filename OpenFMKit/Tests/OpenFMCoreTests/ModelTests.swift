@@ -194,9 +194,16 @@ final class ModelTests: XCTestCase {
         looper.bars = 1             // one-second loop
         XCTAssertEqual(looper.record(), 0)
 
-        for _ in 0..<11 { try tick() }          // count-in, then just into the pass
+        // Half way through the count-in: two beats gone, two to go.
+        for _ in 0..<5 { try tick() }
+        looper.refresh()
+        XCTAssertEqual(looper.countIn, 2)
+        XCTAssertEqual(looper.beatInBar, 2)
+        for _ in 0..<6 { try tick() }           // into the pass
         looper.refresh()
         XCTAssertEqual(looper.recordingLayer, 0)
+        XCTAssertEqual(looper.beatInBar, 0, "the downbeat")
+        XCTAssertNil(looper.beatsUntilRecording)
         model.noteOn(48, velocity: 90)
         for _ in 0..<2 { try tick() }
         model.noteOff(48)
@@ -222,6 +229,22 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(Looper.notes(from: model.audioUnit.looperEvents(forLayer: 0), length: 4).map(\.note), [55, 60],
                        "the engine plays the edited notes")
         looper.setVolume(0, to: 0.6)
+
+        // A second layer armed while the loop plays counts down to the top.
+        model.load(FactoryPresets.all.first { $0.name == "Arp Pluck" }!)
+        XCTAssertEqual(looper.record(), 1)
+        try tick()
+        looper.refresh()
+        XCTAssertEqual(looper.armedLayer, 1)
+        let waiting = try XCTUnwrap(looper.beatsUntilRecording)
+        XCTAssertTrue((1...4).contains(waiting))
+        for _ in 0..<12 { try tick() }          // round to the top and into the pass
+        looper.refresh()
+        XCTAssertNil(looper.beatsUntilRecording)
+        for _ in 0..<10 { try tick() }          // nothing played: the layer stays empty
+        looper.refresh()
+        XCTAssertFalse(looper.layers[1].hasContent)
+        XCTAssertNil(looper.layers[1].sound)
 
         // A new session finds the loop again, sound and settings included.
         let (model2, tick2) = try makeRunningModel()
