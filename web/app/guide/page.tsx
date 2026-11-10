@@ -148,7 +148,7 @@ export default function Guide() {
               Where the app opens. A sound, a keyboard and eight controls. Tap a number to see what it is. In this
               picture <strong>Tone</strong> is being dragged, so it is lit, and so is everything it affects.
             </p>
-            <Annotated src="/screens/ipad-play.jpg" width={1800} height={1298} spots={playSpots}
+            <Annotated src="/screens/ipad-play-2.jpg" width={1800} height={1298} spots={playSpots}
               alt="OpenFM Play screen on iPad with numbered marks on each control." />
             <h3>One gesture for every value</h3>
             <p className="prose">
@@ -165,7 +165,7 @@ export default function Guide() {
               The whole synthesizer. The diagram on the left is the sound's wiring and also its main control: you drag
               the operators themselves.
             </p>
-            <Annotated src="/screens/ipad-edit.jpg" width={1800} height={1298} spots={editSpots}
+            <Annotated src="/screens/ipad-edit-2.jpg" width={1800} height={1298} spots={editSpots}
               alt="OpenFM Edit screen on iPad with numbered marks on the routing diagram, envelope and value cells." />
             <h3>Reading the highlight</h3>
             <p className="prose">
