@@ -3,6 +3,7 @@
 
 #import <AudioToolbox/AudioToolbox.h>
 #import <Foundation/Foundation.h>
+#include <stdbool.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,6 +27,22 @@ typedef NS_ENUM(AUParameterAddress, OpenFMAddress) {
     OpenFMAddressBendRange,
     OpenFMAddressEffectEnd,
 };
+
+/// A snapshot of the loop recorder.
+typedef struct {
+    bool playing;
+    /// The one-bar count before recording starts from a standstill.
+    bool countingIn;
+    /// Layer being recorded, or -1.
+    NSInteger recordingLayer;
+    /// Layer that will start recording when the loop next comes round, or -1.
+    NSInteger armedLayer;
+    /// Position in the loop; negative during the count-in.
+    double positionBeats;
+    double lengthBeats;
+    /// Bit n is set when layer n holds a recording.
+    NSUInteger contentMask;
+} OpenFMLooperState;
 
 /// The OpenFM instrument. Used in-process by the standalone app and as the
 /// AUv3 extension's audio unit; both share the same C++ engine.
@@ -61,6 +78,17 @@ NS_SWIFT_SENDABLE
 /// External MIDI received outside the render cycle. Call from one thread only.
 - (void)receiveMIDIStatus:(uint8_t)status data1:(uint8_t)data1 data2:(uint8_t)data2;
 - (void)panic;
+
+/// The loop recorder: four layers, each keeping the sound it was recorded
+/// with. Used by the standalone app; a plug-in host does this job itself.
+- (void)looperSetTempo:(float)bpm bars:(NSInteger)bars metronome:(BOOL)metronome quantize:(BOOL)quantize;
+/// Records one pass into `layer` (0...3) with the current sound. Counts in
+/// one bar if stopped, otherwise starts when the loop next comes round.
+- (void)looperRecordLayer:(NSInteger)layer;
+- (void)looperSetPlaying:(BOOL)playing;
+- (void)looperClearLayer:(NSInteger)layer;
+- (void)looperSetLayer:(NSInteger)layer muted:(BOOL)muted;
+@property (nonatomic, readonly) OpenFMLooperState looperState;
 
 /// Copies the latest `count` output samples for the oscilloscope.
 - (void)copyScopeInto:(float *)buffer count:(NSInteger)count;

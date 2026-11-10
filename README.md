@@ -24,7 +24,8 @@ Status: pre-release. Free, no ads, no subscriptions. Apache 2.0.
   sensitivity, keyboard level and rate scaling
 - Chorus, ping-pong delay and reverb on XY pads
 - One-cycle waveform preview and a live oscilloscope
-- Multi-touch keyboard with velocity by touch position, octave shift and hold
+- Four-layer loop recorder: each layer keeps the sound it was recorded with
+- Multi-touch keyboard with velocity by touch position, an octave dial and a latching hold
 - CoreMIDI input from every connected source, plus an "OpenFM" virtual
   destination for other apps
 - AUv3 instrument with a full parameter tree for host automation and state

@@ -12,9 +12,11 @@
 #include <vector>
 
 #include "Engine.h"
+#include "Looper.h"
 #include "fm_core.h"
 
 using openfm::Engine;
+using openfm::Looper;
 
 namespace {
 
@@ -130,25 +132,51 @@ inline void handleUMP(Engine *engine, const UInt32 *words, int count) {
 // The block holds a pointer to this struct, never to the buffers themselves:
 // a host may ask for the render block before render resources are allocated,
 // so anything captured by value at that moment would be empty for ever.
-struct RenderState {
-    std::vector<float> scratch[2];
-
-    // Notes played on the plug-in's own keyboard, forwarded to the host as
-    // MIDI output so it can record them. Single producer (the main thread),
-    // single consumer (the render thread), wait-free.
-    static constexpr uint32_t kOutSize = 256;
-    std::atomic<uint32_t> outHead{0};
-    std::atomic<uint32_t> outTail{0};
-    uint32_t outItems[kOutSize];
-    AUMIDIOutputEventBlock midiOut = nil;
+// A wait-free queue of 3-byte MIDI messages: one producer thread, one
+// consumer (the render thread).
+struct MessageQueue {
+    static constexpr uint32_t kSize = 256;
+    std::atomic<uint32_t> head{0};
+    std::atomic<uint32_t> tail{0};
+    uint32_t items[kSize];
 
     void push(uint8_t status, uint8_t d1, uint8_t d2) {
-        const uint32_t head = outHead.load(std::memory_order_relaxed);
-        const uint32_t next = (head + 1) % kOutSize;
-        if (next == outTail.load(std::memory_order_acquire)) return;
-        outItems[head] = (uint32_t)status | ((uint32_t)d1 << 8) | ((uint32_t)d2 << 16);
-        outHead.store(next, std::memory_order_release);
+        const uint32_t h = head.load(std::memory_order_relaxed);
+        const uint32_t next = (h + 1) % kSize;
+        if (next == tail.load(std::memory_order_acquire)) return;
+        items[h] = (uint32_t)status | ((uint32_t)d1 << 8) | ((uint32_t)d2 << 16);
+        head.store(next, std::memory_order_release);
     }
+
+    template <typename F>
+    void drain(F &&handle) {
+        uint32_t t = tail.load(std::memory_order_relaxed);
+        const uint32_t h = head.load(std::memory_order_acquire);
+        while (t != h) {
+            const uint32_t e = items[t];
+            handle((uint8_t)(e & 0xff), (uint8_t)((e >> 8) & 0xff), (uint8_t)((e >> 16) & 0xff));
+            t = (t + 1) % kSize;
+        }
+        tail.store(t, std::memory_order_release);
+    }
+};
+
+// Everything the render block needs besides the engine. The block holds a
+// pointer to this struct, never to its buffers: a host may ask for the render
+// block before render resources are allocated, so anything captured by value
+// at that moment would be empty for ever.
+struct RenderState {
+    std::vector<float> scratch[2];
+    Looper looper;
+
+    // Notes played on the built-in keyboard, forwarded to the host as MIDI
+    // output so it can record them.
+    MessageQueue midiOutQueue;
+    AUMIDIOutputEventBlock midiOut = nil;
+
+    // Notes offered to the looper: one queue per producer thread.
+    MessageQueue loopFromUI;
+    MessageQueue loopFromMIDI;
 };
 
 }  // namespace
@@ -302,6 +330,7 @@ struct RenderState {
     _engine->prepare(_outputBus.format.sampleRate);
     _render->scratch[0].assign(self.maximumFramesToRender, 0.0f);
     _render->scratch[1].assign(self.maximumFramesToRender, 0.0f);
+    _render->looper.prepare(_outputBus.format.sampleRate);
     // Set by hosts that listen to the plug-in's MIDI output; nil otherwise.
     _render->midiOut = self.MIDIOutputEventBlock;
     return YES;
@@ -338,20 +367,12 @@ struct RenderState {
             outputData->mBuffers[i].mDataByteSize = byteSize;
         }
 
-        // Hand the host whatever was played on the plug-in's own keyboard.
-        {
-            uint32_t tail = state->outTail.load(std::memory_order_relaxed);
-            const uint32_t head = state->outHead.load(std::memory_order_acquire);
-            while (tail != head) {
-                if (state->midiOut) {
-                    const uint32_t e = state->outItems[tail];
-                    const uint8_t bytes[3] = {(uint8_t)(e & 0xff), (uint8_t)((e >> 8) & 0xff), (uint8_t)((e >> 16) & 0xff)};
-                    state->midiOut(AUEventSampleTimeImmediate, 0, 3, bytes);
-                }
-                tail = (tail + 1) % RenderState::kOutSize;
-            }
-            state->outTail.store(tail, std::memory_order_release);
-        }
+        // Hand the host whatever was played on the built-in keyboard.
+        state->midiOutQueue.drain([state](uint8_t status, uint8_t d1, uint8_t d2) {
+            if (!state->midiOut) return;
+            const uint8_t bytes[3] = {status, d1, d2};
+            state->midiOut(AUEventSampleTimeImmediate, 0, 3, bytes);
+        });
 
         const AUEventSampleTime start = (AUEventSampleTime)timestamp->mSampleTime;
         const AURenderEvent *event = realtimeEventListHead;
@@ -394,6 +415,13 @@ struct RenderState {
             engine->render(left + done, right + done, (int)(until - done));
             done = until;
         }
+
+        // The looper hears what was just played and adds its layers.
+        Looper *looper = &state->looper;
+        const auto offer = [looper](uint8_t status, uint8_t d1, uint8_t d2) { looper->capture(status, d1, d2); };
+        state->loopFromUI.drain(offer);
+        state->loopFromMIDI.drain(offer);
+        looper->process(left, right, (int)frameCount);
 
         if (!stereo) {
             for (AUAudioFrameCount i = 0; i < frameCount; i++) left[i] = 0.5f * (left[i] + right[i]);
@@ -456,12 +484,14 @@ struct RenderState {
 - (void)noteOn:(uint8_t)note velocity:(uint8_t)velocity {
     const uint8_t v = std::max<uint8_t>(1, velocity & 0x7f);
     _engine->pushEvent(Engine::kQueueUI, 0x90, note & 0x7f, v);
-    _render->push(0x90, note & 0x7f, v);
+    _render->midiOutQueue.push(0x90, note & 0x7f, v);
+    _render->loopFromUI.push(0x90, note & 0x7f, v);
 }
 
 - (void)noteOff:(uint8_t)note {
     _engine->pushEvent(Engine::kQueueUI, 0x80, note & 0x7f, 0);
-    _render->push(0x80, note & 0x7f, 0);
+    _render->midiOutQueue.push(0x80, note & 0x7f, 0);
+    _render->loopFromUI.push(0x80, note & 0x7f, 0);
 }
 
 - (void)sendController:(uint8_t)controller value:(uint8_t)value {
@@ -470,6 +500,7 @@ struct RenderState {
 
 - (void)receiveMIDIStatus:(uint8_t)status data1:(uint8_t)data1 data2:(uint8_t)data2 {
     _engine->pushEvent(Engine::kQueueMIDI, status, data1, data2);
+    _render->loopFromMIDI.push(status, data1, data2);
 }
 
 - (void)panic { _engine->panic(); }
@@ -479,5 +510,39 @@ struct RenderState {
 }
 
 - (NSInteger)activeVoices { return _engine->activeVoices(); }
+
+#pragma mark - Looper
+
+- (void)looperSetTempo:(float)bpm bars:(NSInteger)bars metronome:(BOOL)metronome quantize:(BOOL)quantize {
+    _render->looper.setTempo(bpm);
+    _render->looper.setBars((int)bars);
+    _render->looper.setMetronome(metronome);
+    _render->looper.setQuantize(quantize);
+}
+
+- (void)looperRecordLayer:(NSInteger)layer {
+    uint8_t patch[Engine::kPatchSize];
+    _engine->copyPatch(patch);
+    float fx[Engine::kFxCount];
+    for (int i = 0; i < Engine::kFxCount; i++) fx[i] = _engine->fx(i);
+    _render->looper.record((int)layer, patch, fx);
+}
+
+- (void)looperSetPlaying:(BOOL)playing { _render->looper.setPlaying(playing); }
+- (void)looperClearLayer:(NSInteger)layer { _render->looper.clear((int)layer); }
+- (void)looperSetLayer:(NSInteger)layer muted:(BOOL)muted { _render->looper.setMuted((int)layer, muted); }
+
+- (OpenFMLooperState)looperState {
+    const Looper::State s = _render->looper.state();
+    OpenFMLooperState out;
+    out.playing = s.playing;
+    out.countingIn = s.countingIn;
+    out.recordingLayer = s.recordingLayer;
+    out.armedLayer = s.armedLayer;
+    out.positionBeats = s.positionBeats;
+    out.lengthBeats = s.lengthBeats;
+    out.contentMask = s.contentMask;
+    return out;
+}
 
 @end

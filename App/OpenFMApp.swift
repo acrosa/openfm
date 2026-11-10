@@ -40,7 +40,7 @@ struct OpenFMApp: App {
         if LaunchOptions.value("interface") == "minimal" {
             MinimalInterface(synth: session.synth, presets: session.presets)
         } else {
-            ClassicInterface(synth: session.synth, presets: session.presets)
+            ClassicInterface(synth: session.synth, presets: session.presets, looper: session.looper)
         }
     }
 }

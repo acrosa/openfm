@@ -130,6 +130,49 @@ final class GestureTests: XCTestCase {
         XCTAssertEqual(feedback.value as? String, held)
     }
 
+    /// Record a loop, see it land in layer 1, mute it, record a second
+    /// layer with another sound, clear everything.
+    func testLooperRecordsLayersWithTheirOwnSounds() {
+        launch(mode: "play")
+        let record = element("Record loop")
+        XCTAssertTrue(record.waitForExistence(timeout: 10))
+        let first = element("Loop 1")
+        XCTAssertEqual(first.value as? String, "Empty")
+
+        record.tap()
+        // One bar of count-in at 112 BPM is about 2.1 s; then play a few notes.
+        let keyboard = element("Keyboard")
+        sleep(3)
+        for x in [0.2, 0.35, 0.5] {
+            keyboard.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.8)).press(forDuration: 0.25)
+        }
+        attach("recording loop 1")
+        // The two-bar pass ends by itself and the layer carries the sound's name.
+        let filled = NSPredicate(format: "value == %@", "Glass Keys")
+        wait(for: [expectation(for: filled, evaluatedWith: first)], timeout: 12)
+
+        first.tap()
+        XCTAssertEqual(first.value as? String, "Glass Keys, muted")
+        first.tap()
+        XCTAssertEqual(first.value as? String, "Glass Keys")
+
+        // A second layer with a different sound; the first keeps its own.
+        app.buttons["Felt Tines"].tap()
+        record.tap()
+        let second = element("Loop 2")
+        let recording = NSPredicate(format: "value == %@", "Recording")
+        wait(for: [expectation(for: recording, evaluatedWith: second)], timeout: 8)
+        keyboard.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.8)).press(forDuration: 0.3)
+        let filledSecond = NSPredicate(format: "value == %@", "Felt Tines")
+        wait(for: [expectation(for: filledSecond, evaluatedWith: second)], timeout: 12)
+        XCTAssertEqual(first.value as? String, "Glass Keys")
+        attach("two loop layers")
+
+        element("Loop settings").tap()
+        app.buttons["Clear all loops"].tap()
+        XCTAssertEqual(element("Loop 1").value as? String, "Empty")
+    }
+
     /// An effect pad only moves when its dot is dragged; a swipe across the
     /// rest of the pad is left to the page.
     func testEffectPadMovesOnlyFromItsDot() {

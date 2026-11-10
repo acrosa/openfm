@@ -84,6 +84,15 @@ a plug-in host record automation, and it drives `focus` and `affectedOps`.
 `presets.all`, `presets.sections`, `presets.neighbor(of:offset:)`,
 `presets.save(_:)`, `presets.delete(_:)`, `presets.importFile(at:)`.
 
+### `Looper` — the loop recorder (optional)
+
+`session.looper` records up to four layers, each with the sound it was
+recorded with. `looper.record()`, `looper.togglePlay()`, `looper.toggleMute(n)`,
+`looper.clear(n)`; read `looper.layers`, `looper.progress`, `looper.countIn`,
+`looper.recordingLayer`; set `looper.tempo`, `looper.bars`, `looper.metronome`,
+`looper.quantize`. An interface that doesn't want it simply ignores it; a
+plug-in should not show it, since the host records.
+
 ## Simple first, deep when wanted
 
 The classic interface has two modes, and a new interface can stop at either:

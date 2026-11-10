@@ -10,10 +10,13 @@ import OpenFMEngine
 ///     let session = try OpenFMSession()
 ///     session.start()
 ///     MyInterface(synth: session.synth, presets: session.presets)
+///
+/// `looper` is optional for an interface: it records and plays loops.
 @MainActor
 public final class OpenFMSession {
     public let synth: SynthModel
     public let presets: PresetStore
+    public let looper: Looper
     private let host: AudioHost
 
     /// - Parameter initialPreset: name of the sound to load first; the first
@@ -22,6 +25,7 @@ public final class OpenFMSession {
         host = try AudioHost()
         presets = PresetStore()
         synth = SynthModel(audioUnit: host.audioUnit)
+        looper = Looper(synth: synth)
         if let first = presets.all.first(where: { $0.patch.name == initialPreset }) ?? presets.all.first {
             synth.load(first.patch, presetID: first.id)
         }

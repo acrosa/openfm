@@ -257,8 +257,8 @@ export default function Guide() {
                 <div className="why">Hold the long notes and let the delayed vibrato come in.</div>
               </div></li>
               <li><div>
-                <div className="do">To hear both at once, or to loop the bass while you play the lead, see <a href="#loops" style={{ textDecoration: "underline" }}>Recording loops</a> below.</div>
-                <div className="why">The standalone app plays one sound at a time, like a hardware synth, and does not record.</div>
+                <div className="do">Put them together: with Rust Bass loaded, tap <K>●</K> and record the bass lane. Then load Siren Lead and play the melody over it.</div>
+                <div className="why">The loop keeps the bass sound while you play the lead. More in <a href="#loops" style={{ textDecoration: "underline" }}>Recording loops</a>.</div>
               </div></li>
             </ol>
             <p className="prose" style={{ marginTop: 20 }}>
@@ -271,15 +271,46 @@ export default function Guide() {
             <p className="label">06 · Loops</p>
             <h2>Recording loops</h2>
             <p className="prose">
-              OpenFM is an instrument, not a recorder: on its own it plays one sound, live, and keeps nothing. To
-              record a riff and have it loop while you play over it, boom-box style, run OpenFM <strong>inside a
-              host app</strong>. The host does the recording; OpenFM makes the sound.
+              The app has a small loop recorder above the keyboard: record a riff, it loops, pick another sound and
+              play or record over it. Up to four layers, and <strong>each layer keeps the sound it was recorded
+              with</strong>.
             </p>
             <p className="prose analogy">
-              Think of OpenFM as a keyboard and the host as a tape deck with several tracks. You can plug the same
-              keyboard into every track.
+              It works like a loop pedal: one press to record, and what you played keeps going round while you add
+              the next part.
             </p>
-            <h3>With GarageBand (free)</h3>
+            <h3>In the app</h3>
+            <ol className="steps">
+              <li><div>
+                <div className="do">Load a sound and tap <K>●</K> at the left of the loop strip.</div>
+                <div className="why">You get a one-bar count-in: four clicks, counted down on the button.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Play. After two bars the recording stops by itself and starts looping.</div>
+                <div className="why">Layer 1 now shows the sound's name, with a line moving across it as the loop plays.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Pick another sound and play along, or tap <K>●</K> again to record it as layer 2.</div>
+                <div className="why">Recording waits for the loop to come round, so the layers stay lined up. The first layer still plays its own sound.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Tap a layer to mute it. Touch and hold it to clear it. <K>■</K> stops everything.</div>
+                <div className="why">Muting layers in and out is the simplest way to turn a loop into an arrangement.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Tap <K>112 BPM</K> for tempo, loop length (1, 2 or 4 bars), the click, and snap.</div>
+                <div className="why">Snap moves your notes onto the nearest sixteenth, so a slightly loose take still loops tightly. Set the length before you record the first layer.</div>
+              </div></li>
+            </ol>
+            <p className="prose" style={{ marginTop: 20 }}>
+              Loops live only while the app is open, and they can't be edited note by note or exported. For that, use
+              a host.
+            </p>
+            <h3>In a host, with GarageBand (free)</h3>
+            <p className="prose">
+              For full songs, run OpenFM inside a host app as a plug-in. The host records; OpenFM makes the sound.
+              The loop strip is hidden there, because the host does that job.
+            </p>
             <ol className="steps">
               <li><div>
                 <div className="do">Create a new song and choose <K>Live Loops</K>, then an empty grid.</div>

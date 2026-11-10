@@ -24,6 +24,7 @@ struct RootView: View {
     private enum Mode { case wide, tall, compact, short }
 
     @Environment(SynthModel.self) private var model
+    @Environment(\.looper) private var looper
     @State private var page: Page = RootView.initialPage
     @State private var showBrowser = LaunchOptions.value("browser") != nil
     /// Opens on the simple side; remembers where you left it.
@@ -47,6 +48,10 @@ struct RootView: View {
                     content(mode, size: geo.size)
                 }
                 Theme.line.frame(height: 1)
+                if let looper, mode != .short {
+                    LooperStrip(looper: looper)
+                    Theme.line.frame(height: 1)
+                }
                 KeyboardSection()
                     .frame(height: keyboardHeight(mode, size: geo.size) * (playing && mode != .short ? 1.25 : 1))
             }

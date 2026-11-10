@@ -140,6 +140,73 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(restored.value(forAddress: 203), 0.77, accuracy: 0.001)
     }
 
+    /// Record a note into a layer, stop playing live, and the layer keeps
+    /// playing it, with the sound it was recorded with.
+    func testLooperRecordsAndReplaysALayer() throws {
+        let unit = try makeUnit()
+        unit.setValue(0, forAddress: 206)   // no reverb tail to confuse the measurement
+        // 240 BPM, one bar: the count-in and the loop are one second each.
+        unit.looperSetTempo(240, bars: 1, metronome: false, quantize: true)
+        XCTAssertFalse(unit.looperState.playing)
+
+        unit.looperRecordLayer(0)
+        _ = try render(unit, seconds: 0.5)
+        XCTAssertTrue(unit.looperState.countingIn)
+        XCTAssertEqual(unit.looperState.armedLayer, 0)
+        _ = try render(unit, seconds: 0.55)
+        XCTAssertTrue(unit.looperState.playing)
+        XCTAssertEqual(unit.looperState.recordingLayer, 0)
+
+        // Play one note a little after the downbeat, live.
+        unit.noteOn(60, velocity: 100)
+        _ = try render(unit, seconds: 0.25)
+        unit.noteOff(60)
+        // Change the live sound: the layer must not follow.
+        unit.setValue(0, forAddress: AUParameterAddress(Param.op(1, .level).address))
+        _ = try render(unit, seconds: 0.8)
+
+        // The pass is over: the layer holds the note and nothing is recording.
+        XCTAssertEqual(unit.looperState.recordingLayer, -1)
+        XCTAssertEqual(unit.looperState.contentMask, 1)
+        XCTAssertEqual(unit.activeVoices, 0, "nothing is played live any more")
+
+        // With the live sound silenced, what is heard is the layer alone.
+        XCTAssertGreaterThan(peak(try render(unit, seconds: 1.0)), 0.05, "the layer loops by itself")
+        XCTAssertGreaterThan(peak(try render(unit, seconds: 1.0)), 0.05, "and keeps looping")
+
+        unit.looperSetLayer(0, muted: true)
+        _ = try render(unit, seconds: 1.0)
+        XCTAssertEqual(peak(try render(unit, seconds: 1.0)), 0, accuracy: 1e-3, "muted")
+        unit.looperSetLayer(0, muted: false)
+        XCTAssertGreaterThan(peak(try render(unit, seconds: 1.0)), 0.05)
+
+        unit.looperClearLayer(0)
+        _ = try render(unit, seconds: 1.0)
+        XCTAssertEqual(unit.looperState.contentMask, 0)
+        XCTAssertEqual(peak(try render(unit, seconds: 1.0)), 0, accuracy: 1e-3, "cleared")
+
+        unit.looperSetPlaying(false)
+        _ = try render(unit, seconds: 0.1)
+        XCTAssertFalse(unit.looperState.playing)
+    }
+
+    func testLooperSnapsNotesToTheGrid() throws {
+        // At 60 BPM a sixteenth is 0.25 s. A note played 0.1 s late must come
+        // back on the beat: sound starts right at the loop start next time.
+        let unit = try makeUnit()
+        unit.setValue(0, forAddress: 206)
+        unit.looperSetTempo(60, bars: 1, metronome: false, quantize: true)
+        unit.looperRecordLayer(0)
+        _ = try render(unit, seconds: 4.0)          // count-in
+        _ = try render(unit, seconds: 0.1)          // late
+        unit.noteOn(60, velocity: 100)
+        _ = try render(unit, seconds: 0.5)
+        unit.noteOff(60)
+        _ = try render(unit, seconds: 3.4 + 0.005)  // to the end of the pass
+        let start = try render(unit, seconds: 0.05)
+        XCTAssertGreaterThan(peak(start), 0.05, "the note was moved onto the downbeat")
+    }
+
     func testRendersAtOtherSampleRates() throws {
         let unit = try makeUnit(sampleRate: 44100)
         unit.noteOn(69, velocity: 100)
