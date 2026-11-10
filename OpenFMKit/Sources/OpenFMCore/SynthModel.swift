@@ -420,11 +420,48 @@ public final class SynthModel {
 
     // MARK: Playing
 
+    /// Hold works as a latch: notes keep sounding after you let go, and the
+    /// next thing you play replaces them. Without that, held notes pile up
+    /// until every voice is droning.
+    public private(set) var isHolding = false
+    /// Notes still sounding only because Hold is on.
+    public private(set) var latchedNotes: Set<Int> = []
+    @ObservationIgnored private var pressedNotes: Set<Int> = []
+
     public func noteOn(_ note: Int, velocity: Int) {
+        // A new phrase (nothing else is down) lets go of the latched one.
+        if isHolding, pressedNotes.isEmpty, !latchedNotes.isEmpty {
+            for held in latchedNotes where held != note { audioUnit.noteOff(UInt8(clamping: held)) }
+            latchedNotes = []
+        }
+        pressedNotes.insert(note)
+        latchedNotes.remove(note)
         audioUnit.noteOn(UInt8(clamping: note), velocity: UInt8(clamping: velocity))
     }
 
-    public func noteOff(_ note: Int) { audioUnit.noteOff(UInt8(clamping: note)) }
+    public func noteOff(_ note: Int) {
+        pressedNotes.remove(note)
+        if isHolding {
+            latchedNotes.insert(note)
+        } else {
+            audioUnit.noteOff(UInt8(clamping: note))
+        }
+    }
+
+    public func setHold(_ on: Bool) {
+        isHolding = on
+        if !on {
+            for held in latchedNotes where !pressedNotes.contains(held) { audioUnit.noteOff(UInt8(clamping: held)) }
+            latchedNotes = []
+        }
+    }
+
+    /// Stops everything at once.
+    public func panic() {
+        pressedNotes = []
+        latchedNotes = []
+        audioUnit.panic()
+    }
 
     /// Plays one short note so a sound can be heard without a keyboard, for
     /// example while browsing. Does nothing if something is already sounding.
@@ -436,6 +473,4 @@ public final class SynthModel {
             self?.noteOff(note)
         }
     }
-    public func setHold(_ on: Bool) { audioUnit.sendController(64, value: on ? 127 : 0) }
-    public func panic() { audioUnit.panic() }
 }

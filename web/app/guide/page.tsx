@@ -25,7 +25,7 @@ const playSpots: Spot[] = [
   { ...at(1295, 420), title: "Sounds", body: "The library, always there on iPad. Tap a name and it is loaded. Your own and imported sounds sit above the factory ones." },
   { ...at(1295, 700), title: "Import · Save", body: "Import reads DX7 .syx banks and OpenFM patch files. Save keeps your version; its menu also has Revert to Original." },
   { ...at(155, 787), title: "Octave dial", body: "Swipe sideways to roll the keyboard up or down an octave. Tapping either side steps once." },
-  { ...at(1503, 787), title: "Hold", body: "Keeps notes ringing after you let go, like a piano's sustain pedal." },
+  { ...at(1503, 787), title: "Hold", body: "Keeps what you played sounding after you let go. The next note or chord you play replaces it, so nothing piles up. Held keys stay softly lit." },
   { ...at(800, 960), title: "Keyboard", body: "Touch lower on a key to play louder. Slide to glide between notes. With a hardware keyboard, A S D F… are the white keys and Z / X change octave." },
 ];
 

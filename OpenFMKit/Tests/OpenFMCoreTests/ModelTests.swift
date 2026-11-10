@@ -1,6 +1,7 @@
 // Copyright 2026 The OpenFM Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import AVFoundation
 import XCTest
 @testable import OpenFMCore
 import OpenFMEngine
@@ -104,6 +105,56 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(model.value(Macro.tone), 0)
         model.set(Macro.tone, to: 1)
         XCTAssertEqual(model.value(.op(2, .level)), 72)
+    }
+
+    /// Hold is a latch: the next phrase replaces the held one, so notes
+    /// cannot pile up.
+    func testHoldLatchesOnePhraseAtATime() throws {
+        let unit = try OpenFMAudioUnit(componentDescription: OpenFMAudioUnit.openFMDescription, options: [])
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2))
+        try unit.outputBusses[0].setFormat(format)
+        try unit.allocateRenderResources()
+        let model = SynthModel(audioUnit: unit)
+        model.load(FactoryPresets.all.first { $0.name == "Drawbars" }!)   // sustains for ever
+
+        func voices() throws -> Int {
+            let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 512))
+            buffer.frameLength = 512
+            var time = AudioTimeStamp()
+            time.mFlags = .sampleTimeValid
+            var flags = AudioUnitRenderActionFlags()
+            let block = unit.renderBlock
+            for _ in 0..<60 {
+                _ = block(&flags, &time, 512, 0, buffer.mutableAudioBufferList, nil)
+                time.mSampleTime += 512
+            }
+            return unit.activeVoices
+        }
+
+        model.setHold(true)
+        // A three-note chord, released: it keeps sounding.
+        for note in [60, 64, 67] { model.noteOn(note, velocity: 100) }
+        for note in [60, 64, 67] { model.noteOff(note) }
+        XCTAssertEqual(model.latchedNotes, [60, 64, 67])
+        XCTAssertEqual(try voices(), 3)
+
+        // The next note replaces the chord instead of adding to it.
+        model.noteOn(72, velocity: 100)
+        XCTAssertEqual(model.latchedNotes, [])
+        model.noteOff(72)
+        XCTAssertEqual(model.latchedNotes, [72])
+        XCTAssertEqual(try voices(), 1)
+
+        // Many phrases later there is still only the last one.
+        for note in 40..<70 {
+            model.noteOn(note, velocity: 100)
+            model.noteOff(note)
+        }
+        XCTAssertEqual(try voices(), 1)
+
+        model.setHold(false)
+        XCTAssertEqual(model.latchedNotes, [])
+        XCTAssertEqual(try voices(), 0)
     }
 
     func testPatchFormatsReadSysExAndOpenFMFiles() throws {

@@ -11,7 +11,6 @@ import UIKit
 struct KeyboardSection: View {
     @Environment(SynthModel.self) private var model
     @State private var octave = 3
-    @State private var hold = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,9 +20,9 @@ struct KeyboardSection: View {
 
                 Spacer(minLength: 0)
 
+                let hold = model.isHolding
                 Button {
-                    hold.toggle()
-                    model.setHold(hold)
+                    model.setHold(!hold)
                     Haptics.tap()
                 } label: {
                     Text("HOLD")
@@ -36,12 +35,14 @@ struct KeyboardSection: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Hold")
+                .accessibilityHint("Keeps notes sounding until you play something else")
                 .accessibilityAddTraits(hold ? [.isSelected] : [])
             }
             .padding(.horizontal, Theme.gutter)
             .frame(height: 44)
 
             KeyboardView(lowestNote: (octave + 2) * 12,
+                         latched: model.latchedNotes,
                          noteOn: { note, velocity in model.noteOn(note, velocity: velocity) },
                          noteOff: { note in model.noteOff(note) },
                          shiftOctave: { delta in
@@ -142,6 +143,8 @@ private extension CGFloat {
 struct KeyboardView: UIViewRepresentable {
     /// MIDI note of the leftmost key (a C).
     let lowestNote: Int
+    /// Notes kept sounding by Hold; drawn dimly lit.
+    var latched: Set<Int> = []
     let noteOn: (Int, Int) -> Void
     let noteOff: (Int) -> Void
     /// Called with -1 or +1 when a hardware keyboard asks for another octave.
@@ -161,6 +164,7 @@ struct KeyboardView: UIViewRepresentable {
         view.noteOff = noteOff
         view.shiftOctave = shiftOctave
         if view.lowestNote != lowestNote { view.lowestNote = lowestNote }
+        if view.latched != latched { view.latched = latched }
         view.claimHardwareKeyboard()
     }
 }
@@ -176,6 +180,9 @@ final class KeysView: UIView {
     }
 
     var shiftOctave: (Int) -> Void = { _ in }
+    var latched: Set<Int> = [] {
+        didSet { setNeedsDisplay() }
+    }
 
     private var held: [UITouch: Int] = [:]
     /// Notes held from a hardware keyboard, by physical key.
@@ -203,6 +210,9 @@ final class KeysView: UIView {
     private let gapColor = UIColor.dynamic(light: 0xF2F1ED, dark: 0x09090A)
     private let labelColor = UIColor(hex: 0x121212, alpha: 0.45)
     private let accent = UIColor.dynamic(light: 0x3F7A00, dark: 0xCCFF00)
+    /// Held by the latch: tinted, but clearly not under a finger.
+    private let latchedWhite = UIColor.dynamic(light: 0xC5DDA8, dark: 0xDDF08A)
+    private let latchedBlack = UIColor.dynamic(light: 0x2C5200, dark: 0x5A7000)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -372,7 +382,7 @@ final class KeysView: UIView {
         for i in 0..<whiteCount {
             let note = whiteNote(i)
             let keyRect = CGRect(x: CGFloat(i) * w + 0.5, y: 0, width: w - 1, height: bounds.height)
-            (down.contains(note) ? accent : whiteColor).setFill()
+            (down.contains(note) ? accent : (latched.contains(note) ? latchedWhite : whiteColor)).setFill()
             UIBezierPath(roundedRect: keyRect, byRoundingCorners: [.bottomLeft, .bottomRight],
                          cornerRadii: CGSize(width: 5, height: 5)).fill()
             if i % 7 == 0, bounds.height > 70 {
@@ -385,7 +395,7 @@ final class KeysView: UIView {
             }
         }
         for key in blackKeys() {
-            (down.contains(key.note) ? accent : blackColor).setFill()
+            (down.contains(key.note) ? accent : (latched.contains(key.note) ? latchedBlack : blackColor)).setFill()
             UIBezierPath(roundedRect: key.rect, byRoundingCorners: [.bottomLeft, .bottomRight],
                          cornerRadii: CGSize(width: 4, height: 4)).fill()
         }
