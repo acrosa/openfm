@@ -27,13 +27,11 @@ struct RootView: View {
     @Environment(\.looper) private var looper
     @State private var page: Page = RootView.initialPage
     @State private var showBrowser = LaunchOptions.value("browser") != nil
-    /// Opens on the simple side; remembers where you left it.
-    @AppStorage("openfm.interfaceMode") private var storedMode = InterfaceMode.play.rawValue
+    /// Always opens on the simple side: an instrument should be playable the
+    /// moment it appears.
+    @State private var currentMode = InterfaceMode(rawValue: LaunchOptions.value("mode")?.capitalized ?? "") ?? .play
 
-    private var interfaceMode: Binding<InterfaceMode> {
-        Binding(get: { InterfaceMode(rawValue: LaunchOptions.value("mode")?.capitalized ?? storedMode) ?? .play },
-                set: { storedMode = $0.rawValue })
-    }
+    private var interfaceMode: Binding<InterfaceMode> { $currentMode }
 
     var body: some View {
         GeometryReader { geo in

@@ -16,7 +16,7 @@ struct LooperStrip: View {
     @State private var showSettings = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             recordButton
             playButton
             ForEach(looper.layers) { layer in
@@ -89,21 +89,22 @@ struct LooperStrip: View {
             looper.togglePlay()
             Haptics.tap()
         } label: {
-            VStack(spacing: 6) {
-                Image(systemName: running ? "stop.fill" : "play.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Theme.text)
-                // The pulse: four marks, one per beat, the downbeat brightest.
-                HStack(spacing: 3) {
-                    ForEach(0..<4, id: \.self) { beat in
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(looper.beatInBar == beat ? (beat == 0 ? Theme.accent : Theme.text) : Theme.line)
-                            .frame(width: 6, height: 3)
-                    }
-                }
-                .accessibilityHidden(true)
-            }
+            TransportGlyph(stop: running)
+                .fill(Theme.text)
+                .frame(width: 14, height: 14)
                 .frame(width: 52, height: 44)
+                .overlay(alignment: .bottom) {
+                    // The pulse: four marks, one per beat, the downbeat brightest.
+                    HStack(spacing: 3) {
+                        ForEach(0..<4, id: \.self) { beat in
+                            RoundedRectangle(cornerRadius: 1)
+                                .fill(looper.beatInBar == beat ? (beat == 0 ? Theme.accent : Theme.text) : Theme.line)
+                                .frame(width: 6, height: 3)
+                        }
+                    }
+                    .padding(.bottom, 6)
+                    .accessibilityHidden(true)
+                }
                 .background(Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
                 .opacity(running || looper.hasContent ? 1 : 0.4)
@@ -157,18 +158,27 @@ private struct LayerTile: View {
         let adjusting = startVolume != nil
         let shape = RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
 
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("\(layer.id + 1)")
+        let numberColor = recording ? Theme.background : (layer.hasContent ? Theme.accent : Theme.tertiary)
+        let textColor = recording ? Theme.background : (adjusting ? Theme.accent : (layer.hasContent ? Theme.text : Theme.tertiary))
+        let text = adjusting ? "VOL \(Int((layer.volume * 100).rounded()))" : caption(recording: recording, waiting: waiting)
+        // On a phone the tiles are narrow: show what fits, and never a
+        // clipped name. Short states (REC, IN 3, a volume) replace the number.
+        let short = adjusting ? "\(Int((layer.volume * 100).rounded()))" : (recording ? "REC" : (waiting ? shortWaiting : "\(layer.id + 1)"))
+
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(layer.id + 1)").font(.value(13, weight: .semibold)).foregroundStyle(numberColor)
+                Text(text).font(.value(12)).foregroundStyle(textColor).lineLimit(1).fixedSize()
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            Text(short)
                 .font(.value(13, weight: .semibold))
-                .foregroundStyle(recording ? Theme.background : (layer.hasContent ? Theme.accent : Theme.tertiary))
-            Text(adjusting ? "VOL \(Int((layer.volume * 100).rounded()))" : caption(recording: recording, waiting: waiting))
-                .font(.value(12))
-                .foregroundStyle(recording ? Theme.background : (adjusting ? Theme.accent : (layer.hasContent ? Theme.text : Theme.tertiary)))
+                .foregroundStyle(adjusting || waiting ? Theme.accent : numberColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Spacer(minLength: 0)
+                .padding(.horizontal, 2)
         }
-        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
         .background {
             ZStack(alignment: .bottom) {
@@ -245,6 +255,10 @@ private struct LayerTile: View {
         .sheet(isPresented: $isEditing) {
             LoopEditor(looper: looper, layer: layer.id)
         }
+    }
+
+    private var shortWaiting: String {
+        looper.beatsUntilRecording.map { "\($0)" } ?? "•"
     }
 
     private func caption(recording: Bool, waiting: Bool) -> String {
@@ -370,5 +384,24 @@ private struct LooperSettings: View {
             .buttonStyle(.plain)
             .accessibilityLabel(label)
             .accessibilityValue(value)
+    }
+}
+
+/// Play and stop drawn to the same size and optical centre, so the button
+/// does not jump when it changes.
+private struct TransportGlyph: Shape {
+    let stop: Bool
+
+    func path(in rect: CGRect) -> Path {
+        if stop {
+            return Path(roundedRect: rect.insetBy(dx: 1, dy: 1), cornerRadius: 2)
+        }
+        // A triangle looks centred when nudged right of its bounding box.
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + 2, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX + 1, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX + 2, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }

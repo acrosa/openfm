@@ -13,6 +13,13 @@ struct HeaderView: View {
     @Binding var showBrowser: Bool
     @Binding var mode: InterfaceMode
 
+    /// Where a swipe across the sound name began, and how far the name has
+    /// been pulled since the last step.
+    @State private var swipeStart: Int?
+    @State private var swipeOffset: CGFloat = 0
+    @GestureState private var isSwiping = false
+    private let swipePitch: CGFloat = 64
+
     /// True while there is something to say about a control.
     private var isExplaining: Bool {
         model.focus != nil || model.activeMacro != nil || model.peek != nil
@@ -72,32 +79,71 @@ struct HeaderView: View {
     }
 
     private var presetBlock: some View {
-        Button {
-            showBrowser = true
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(presetCaption).labelStyle(9)
-                    if model.isEdited { Text("EDITED").labelStyle(9, color: Theme.accent) }
-                }
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(model.name)
-                        .font(.display(compact ? 17 : 20))
-                        .kerning(-0.4)
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Theme.tertiary)
-                }
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(presetCaption).labelStyle(9)
+                if model.isEdited { Text("EDITED").labelStyle(9, color: Theme.accent) }
             }
-            .frame(minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(model.name)
+                    .font(.display(compact ? 17 : 20))
+                    .kerning(-0.4)
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.tertiary)
+            }
         }
-        .buttonStyle(.plain)
+        .frame(minHeight: 44, alignment: .leading)
+        .offset(x: swipeOffset)
+        .opacity(1 - min(abs(swipeOffset) / swipePitch, 1) * 0.5)
+        .contentShape(Rectangle())
+        // Swipe across the name to roll through the sounds, like the octave
+        // dial: pull left for the next one, right for the one before.
+        .onTapGesture { showBrowser = true }
+        .gesture(
+            DragGesture(minimumDistance: 10)
+                .updating($isSwiping) { _, state, _ in state = true }
+                .onChanged { g in
+                    // Sideways only: a vertical drag here means nothing.
+                    guard swipeStart != nil || abs(g.translation.width) > abs(g.translation.height) else { return }
+                    swipe(g.translation.width)
+                }
+        )
+        .onChange(of: isSwiping) { _, swiping in
+            if !swiping {
+                swipeStart = nil
+                withAnimation(.snappy(duration: 0.2)) { swipeOffset = 0 }
+            }
+        }
+        .accessibilityElement()
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Sound: \(model.name)\(model.isEdited ? ", edited" : "")")
-        .accessibilityHint("Opens the sound browser")
+        .accessibilityHint("Opens the sound browser. Swipe sideways for the next or previous sound")
+        .accessibilityAdjustableAction { direction in
+            if let preset = store.neighbor(of: model.presetID, offset: direction == .increment ? 1 : -1) {
+                model.load(preset.patch, presetID: preset.id)
+            }
+        }
+    }
+
+    private func swipe(_ distance: CGFloat) {
+        let sounds = store.all
+        guard !sounds.isEmpty else { return }
+        if swipeStart == nil {
+            swipeStart = sounds.firstIndex { $0.id == model.presetID } ?? 0
+        }
+        guard let swipeStart else { return }
+        // One sound per `swipePitch` points; a long swipe passes several.
+        let steps = Int((-distance / swipePitch).rounded(.towardZero))
+        let target = ((swipeStart + steps) % sounds.count + sounds.count) % sounds.count
+        if sounds[target].id != model.presetID {
+            model.load(sounds[target].patch, presetID: sounds[target].id)
+            Haptics.tick()
+        }
+        swipeOffset = (distance + CGFloat(steps) * swipePitch) * 0.5
     }
 
     private var presetCaption: String {

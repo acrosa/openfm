@@ -14,10 +14,10 @@ export const metadata: Metadata = {
 const at = (x: number, y: number) => ({ x: ((x - 44) / 1529) * 100, y: (y / 1103) * 100 });
 
 const playSpots: Spot[] = [
-  { ...at(150, 62), title: "The sound", body: "The name of what you are playing. Tap it to open the full browser. EDITED appears in lime once you change anything." },
+  { ...at(150, 62), title: "The sound", body: "The name of what you are playing. Swipe across it to roll to the next or previous sound; tap it to open the full browser. EDITED appears in lime once you change anything." },
   { ...at(410, 50), title: "Previous · next", body: "Step through every sound without leaving the keyboard." },
   { ...at(760, 62), title: "Readout", body: "Names the control under your finger, shows its value, and says in plain words what it does. Tap any control once to read about it without changing it." },
-  { ...at(1480, 50), title: "Play · Edit", body: "Play is this screen. Edit opens the whole synthesizer. Your choice is remembered." },
+  { ...at(1480, 50), title: "Play · Edit", body: "Play is this screen. Edit opens the whole synthesizer. The app always opens in Play." },
   { ...at(540, 270), title: "Output", body: "The sound's waveform. It is live while you play, and when silent it previews the shape, so you can see a control working before you press a key." },
   { ...at(960, 139), title: "Operator marks", body: "Six squares, one per operator. Filled ones are heard; outlined ones shape the tone. They light up to show which operators a control reaches." },
   { ...at(300, 485), title: "Shape", body: "Four macros. Tone is darker ↔ brighter; Attack, Decay and Release change how a note starts, settles and ends. Zero means “as the sound was designed”. Double-tap to go back." },

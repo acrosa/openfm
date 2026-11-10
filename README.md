@@ -101,7 +101,7 @@ and the plug-in always sound the same.
 
 ### Simple and deep
 
-The interface opens in **Play**: the sound's name, a live scope, four shape
+The interface always opens in **Play**: the sound's name, a live scope, four shape
 macros (Tone, Attack, Decay, Release), chorus/echo/reverb/volume, Sounds and
 Import. **Edit** is one tap away and shows everything — routing, operators,
 envelopes, LFO, effects — with the rarely used sections folded.

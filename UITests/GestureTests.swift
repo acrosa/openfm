@@ -138,6 +138,44 @@ final class GestureTests: XCTestCase {
         XCTAssertEqual(feedback.value as? String, held)
     }
 
+    /// Swiping across the sound name rolls through the sounds; tapping it
+    /// still opens the browser. The app always opens in Play.
+    func testSwipingTheSoundNameCyclesSounds() {
+        app.launchArguments = ["-openfm.preset", "Glass Keys"]
+        app.launch()
+        XCTAssertTrue(element("Tone").waitForExistence(timeout: 10), "opens in Play")
+
+        let name = element("Sound: Glass Keys")
+        let start = name.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -80, dy: 0)))
+        XCTAssertTrue(element("Sound: Felt Tines").waitForExistence(timeout: 5), "left is next")
+
+        let second = element("Sound: Felt Tines").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        second.press(forDuration: 0.1, thenDragTo: second.withOffset(CGVector(dx: 80, dy: 0)))
+        XCTAssertTrue(element("Sound: Glass Keys").waitForExistence(timeout: 5), "right goes back")
+
+        // A longer swipe passes two, and the list wraps round at the ends.
+        let third = element("Sound: Glass Keys").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        third.press(forDuration: 0.1, thenDragTo: third.withOffset(CGVector(dx: 150, dy: 0)))
+        XCTAssertTrue(element("Sound: Nylon Pluck").waitForExistence(timeout: 5), "two back from the first is the second to last")
+
+        // A vertical drag on the name does nothing.
+        let fourth = element("Sound: Nylon Pluck").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        fourth.press(forDuration: 0.1, thenDragTo: fourth.withOffset(CGVector(dx: 0, dy: 90)))
+        XCTAssertTrue(element("Sound: Nylon Pluck").exists)
+
+        element("Sound: Nylon Pluck").tap()
+        XCTAssertTrue(app.navigationBars["Sounds"].waitForExistence(timeout: 5), "a tap still opens the browser")
+        app.buttons["Done"].tap()
+
+        // Switching to Edit is not remembered: the next launch is Play again.
+        app.buttons["Edit"].tap()
+        XCTAssertTrue(element("Algorithm").waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("Tone").waitForExistence(timeout: 10))
+    }
+
     /// Record a loop, see it land in layer 1, mute it, record a second
     /// layer with another sound, clear everything.
     func testLooperRecordsLayersWithTheirOwnSounds() {
