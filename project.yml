@@ -1,0 +1,85 @@
+name: OpenFM
+options:
+  bundleIdPrefix: org.openfm
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+# All engine, logic and interface code lives in the OpenFMKit package.
+# The targets below are thin shells around it.
+packages:
+  OpenFMKit:
+    path: OpenFMKit
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+targets:
+  OpenFM:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.openfm.OpenFM
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: App/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: OpenFM
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.music
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "OpenFM uses Bluetooth to play from wireless MIDI keyboards."
+    dependencies:
+      - target: OpenFMAU
+        embed: true
+      - package: OpenFMKit
+        product: OpenFMCore
+      - package: OpenFMKit
+        product: OpenFMInterface
+      - package: OpenFMKit
+        product: OpenFMMinimalInterface
+  OpenFMAU:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: AUv3
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.openfm.OpenFM.AudioUnit
+        INFOPLIST_FILE: AUv3/Info.plist
+        APPLICATION_EXTENSION_API_ONLY: YES
+    dependencies:
+      - package: OpenFMKit
+        product: OpenFMCore
+      - package: OpenFMKit
+        product: OpenFMInterface
+  OpenFMUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.openfm.OpenFMUITests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: OpenFM
+schemes:
+  OpenFM:
+    build:
+      targets:
+        OpenFM: all
+        OpenFMAU: all
+        OpenFMUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: OpenFMKit/OpenFMCoreTests
+        - OpenFMUITests
