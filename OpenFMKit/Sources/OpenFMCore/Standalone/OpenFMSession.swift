@@ -25,14 +25,20 @@ public final class OpenFMSession {
         host = try AudioHost()
         presets = PresetStore()
         synth = SynthModel(audioUnit: host.audioUnit)
-        looper = Looper(synth: synth, directory: PresetStore.defaultDirectory)
+        // `-openfm.demoLoops 1` shows a ready-made beat without saving it.
+        let demo = LaunchOptions.value("demoLoops") != nil
+        looper = Looper(synth: synth, directory: demo ? nil : PresetStore.defaultDirectory)
+        if demo { looper.loadDemo() }
         if let first = presets.all.first(where: { $0.patch.name == initialPreset }) ?? presets.all.first {
             synth.load(first.patch, presetID: first.id)
         }
     }
 
     /// Starts audio output and MIDI input.
-    public func start() { host.start() }
+    public func start() {
+        host.start()
+        if LaunchOptions.value("demoLoops") != nil, !looper.isPlaying { looper.togglePlay() }
+    }
 
     /// Imports a patch file handed to the app (Files, AirDrop, another app)
     /// and loads its first sound.

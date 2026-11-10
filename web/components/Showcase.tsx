@@ -6,7 +6,7 @@ import { useState } from "react";
 type Mode = "play" | "edit";
 
 const captions: Record<Mode, [string, string]> = {
-  play: ["Play, on iPad. A sound, eight controls, the library and a keyboard.", "Play, on iPhone."],
+  play: ["Play, on iPad. A sound, eight controls, the library, three loops playing, and a keyboard.", "Play, on iPhone."],
   edit: ["Edit, on iPad. Dragging operator 6 lights everything it changes.", "Edit, on iPhone."],
 };
 
@@ -41,7 +41,7 @@ export function Showcase() {
         <figure>
           <div className="device ipad swap">
             {(["play", "edit"] as Mode[]).map((m) => (
-              <Image key={m} src={`/screens/ipad-${m}-2.jpg`} width={1800} height={1298} priority={m === "play"}
+              <Image key={m} src={`/screens/ipad-${m}-3.jpg`} width={1800} height={1298} priority={m === "play"}
                 sizes="(max-width: 860px) 100vw, 720px" alt={mode === m ? alts[m][0] : ""} aria-hidden={mode !== m}
                 className={mode === m ? "show" : ""} />
             ))}
@@ -53,7 +53,7 @@ export function Showcase() {
         <figure className="phone">
           <div className="device iphone swap">
             {(["play", "edit"] as Mode[]).map((m) => (
-              <Image key={m} src={`/screens/iphone-${m}-2.jpg`} width={644} height={1400} sizes="240px"
+              <Image key={m} src={`/screens/iphone-${m}-3.jpg`} width={644} height={1400} sizes="240px"
                 alt={mode === m ? alts[m][1] : ""} aria-hidden={mode !== m} className={mode === m ? "show" : ""} />
             ))}
           </div>

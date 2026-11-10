@@ -10,47 +10,47 @@ export const metadata: Metadata = {
   description: "Every OpenFM control explained, FM synthesis in plain words, the loop recorder, and a tutorial that builds an industrial track.",
 };
 
-// Positions were measured on a 1600 × 1103 capture whose left 44 px and right
-// 27 px were cropped away for the published image.
-const at = (x: number, y: number) => ({ x: ((x - 44) / 1529) * 100, y: (y / 1103) * 100 });
+// Positions were measured in pixels on a 1600 × 1153 copy of each screenshot.
+const at = (x: number, y: number) => ({ x: (x / 1600) * 100, y: (y / 1153) * 100 });
 
 const playSpots: Spot[] = [
-  { ...at(150, 62), title: "The sound", body: "The name of what you are playing. Swipe across it to roll to the next or previous sound; tap it to open the full browser. EDITED appears in lime once you change anything." },
-  { ...at(410, 50), title: "Previous · next", body: "Step through every sound without leaving the keyboard." },
-  { ...at(760, 62), title: "Readout", body: "Names the control under your finger, shows its value, and says in plain words what it does. Tap any control once to read about it without changing it." },
-  { ...at(1480, 50), title: "Play · Edit", body: "Play is this screen. Edit opens the whole synthesizer. The app always opens in Play." },
-  { ...at(540, 270), title: "Output", body: "The sound's waveform. It is live while you play, and when silent it previews the shape, so you can see a control working before you press a key." },
-  { ...at(960, 139), title: "Operator marks", body: "Six squares, one per operator. Filled ones are heard; outlined ones shape the tone. They light up to show which operators a control reaches." },
-  { ...at(300, 485), title: "Shape", body: "Four macros. Tone is darker ↔ brighter; Attack, Decay and Release change how a note starts, settles and ends. Zero means “as the sound was designed”. Double-tap to go back." },
-  { ...at(300, 627), title: "Space", body: "Chorus thickens, Echo repeats, Reverb puts it in a room. Each is how much of that effect you hear. Volume is the master level." },
-  { ...at(1295, 420), title: "Sounds", body: "The library, always there on iPad. Tap a name and it is loaded. Your own and imported sounds sit above the factory ones." },
-  { ...at(1295, 700), title: "Import · Save", body: "Import reads DX7 .syx banks and OpenFM patch files. Save keeps your version; its menu also has Revert to Original." },
-  { ...at(155, 787), title: "Octave dial", body: "Swipe sideways to roll the keyboard up or down an octave. Tapping either side steps once." },
-  { ...at(1503, 787), title: "Hold", body: "Keeps what you played sounding after you let go. The next note or chord you play replaces it, so nothing piles up. Held keys stay softly lit." },
-  { ...at(800, 960), title: "Keyboard", body: "Touch lower on a key to play louder. Slide to glide between notes. With a hardware keyboard, A S D F… are the white keys and Z / X change octave." },
+  { ...at(105, 66), title: "The sound", body: "The name of what you are playing. Swipe across it to roll to the next or previous sound; tap it to open the full browser. EDITED appears in lime once you change anything." },
+  { ...at(383, 52), title: "Previous · next", body: "Step through every sound without leaving the keyboard." },
+  { ...at(780, 66), title: "Readout", body: "Names the control under your finger, shows its value, and says in plain words what it does. Tap any control once to read about it without changing it." },
+  { ...at(1505, 52), title: "Play · Edit", body: "Play is this screen. Edit opens the whole synthesizer. The app always opens in Play." },
+  { ...at(520, 285), title: "Output", body: "The sound's waveform. It is live while you play, and when silent it previews the shape, so you can see a control working before you press a key." },
+  { ...at(958, 145), title: "Operator marks", body: "Six squares, one per operator. Filled ones are heard; outlined ones shape the tone. They light up to show which operators a control reaches." },
+  { ...at(395, 506), title: "Shape", body: "Four macros. Tone is darker ↔ brighter; Attack, Decay and Release change how a note starts, settles and ends. Zero means “as the sound was designed”. Double-tap to go back." },
+  { ...at(395, 655), title: "Space", body: "Chorus thickens, Echo repeats, Reverb puts it in a room. Each is how much of that effect you hear. Volume is the master level." },
+  { ...at(1310, 440), title: "Sounds", body: "The library, always there on iPad. Tap a name and it is loaded. Your own and imported sounds sit above the factory ones." },
+  { ...at(1310, 668), title: "Import · Save", body: "Import reads DX7 .syx banks and OpenFM patch files. Save keeps your version; its menu also has Revert to Original." },
+  { ...at(680, 766), title: "Loop recorder", body: "Record what you play and it loops. Here three layers are playing: a kick, a hat and a bass, each with its own sound. See “The loop recorder” below." },
+  { ...at(117, 836), title: "Octave dial", body: "Swipe sideways to roll the keyboard up or down an octave. Tapping either side steps once." },
+  { ...at(1528, 836), title: "Hold", body: "Keeps what you played sounding after you let go. The next note or chord you play replaces it, so nothing piles up. Held keys stay softly lit." },
+  { ...at(800, 1000), title: "Keyboard", body: "Touch lower on a key to play louder. Slide to glide between notes. With a hardware keyboard, A S D F… are the white keys and Z / X change octave." },
 ];
 
 const editSpots: Spot[] = [
-  { ...at(100, 175), title: "Algorithm", body: "Which operator feeds which: one of 32 wirings. Drag the number sideways to scrub through them and watch the diagram rearrange; tap it to see all 32." },
-  { ...at(492, 167), title: "Feedback", body: "Lets one operator modulate itself. A little adds edge, a lot adds noise. The loop it applies to is drawn on the diagram." },
-  { ...at(255, 410), title: "Routing diagram", body: "Bottom row: carriers, the operators you hear. Above them: modulators, which change the tone of whatever they point at. The fill inside each box is its level." },
-  { ...at(445, 330), title: "Dragging an operator", body: "Up/down sets level, sideways sets ratio, double-tap switches it off. Here OP 6 is being dragged: it, the operator it modulates and the path between them light up." },
-  { ...at(318, 755), title: "Wave", body: "One cycle of the result, redrawn as you edit." },
-  { ...at(690, 62), title: "Readout", body: "“Modulator · brightness of OP 5”. The hint changes with the algorithm, so it always describes this operator in this sound." },
-  { ...at(1083, 131), title: "Pages", body: "Operator: one operator in detail. Motion: LFO, pitch envelope, tuning. Effects: chorus, delay and reverb as pads you move a dot around in." },
-  { ...at(1083, 218), title: "Operator tabs", body: "Pick an operator to edit. C or M marks carrier or modulator; the bar is its level." },
-  { ...at(1083, 415), title: "Envelope", body: "How this operator's level moves over a note. Drag handle 1–4: sideways for how fast that stage is reached, up/down for its level. KEY OFF is where you let go." },
-  { ...at(1083, 570), title: "Value cells", body: "The same envelope as numbers. Every cell works the same way: drag sideways to change, tap to read about it, double-tap to reset." },
-  { ...at(846, 712), title: "Frequency", body: "Ratio mode follows the keyboard (×2.00 is an octave up). Fixed mode stays at one pitch regardless of the key, which is good for clicks and drones." },
-  { ...at(1320, 712), title: "Level", body: "Output level, plus how much playing harder (Velocity) and the LFO (Amp Mod) affect it." },
-  { ...at(700, 815), title: "More", body: "Rarely needed settings stay folded until you open them." },
+  { ...at(58, 184), title: "Algorithm", body: "Which operator feeds which: one of 32 wirings. Drag the number sideways to scrub through them and watch the diagram rearrange; tap it to see all 32." },
+  { ...at(470, 176), title: "Feedback", body: "Lets one operator modulate itself. A little adds edge, a lot adds noise. The loop it applies to is drawn on the diagram." },
+  { ...at(220, 385), title: "Routing diagram", body: "Bottom row: carriers, the operators you hear. Above them: modulators, which change the tone of whatever they point at. The fill inside each box is its level." },
+  { ...at(420, 300), title: "Dragging an operator", body: "Up/down sets level, sideways sets ratio, double-tap switches it off. Here OP 6 is being dragged: it, the operator it modulates and the path between them light up." },
+  { ...at(287, 712), title: "Wave", body: "One cycle of the result, redrawn as you edit." },
+  { ...at(700, 66), title: "Readout", body: "“Modulator · brightness of OP 5”. The hint changes with the algorithm, so it always describes this operator in this sound." },
+  { ...at(1088, 137), title: "Pages", body: "Operator: one operator in detail. Motion: LFO, pitch envelope, tuning. Effects: chorus, delay and reverb as pads you move a dot around in." },
+  { ...at(1088, 228), title: "Operator tabs", body: "Pick an operator to edit. C or M marks carrier or modulator; the bar is its level." },
+  { ...at(1088, 430), title: "Envelope", body: "How this operator's level moves over a note. Drag handle 1–4: sideways for how fast that stage is reached, up/down for its level. KEY OFF is where you let go." },
+  { ...at(1088, 598), title: "Value cells", body: "The same envelope as numbers. Every cell works the same way: drag sideways to change, tap to read about it, double-tap to reset. Scroll down for more; rarely needed settings stay folded until you open them." },
+  { ...at(840, 742), title: "Frequency", body: "Ratio mode follows the keyboard (×2.00 is an octave up). Fixed mode stays at one pitch regardless of the key, which is good for clicks and drones." },
+  { ...at(1335, 742), title: "Level", body: "Output level, plus how much playing harder (Velocity) and the LFO (Amp Mod) affect it." },
+  { ...at(680, 825), title: "Loop recorder", body: "The loops keep playing while you edit, so you can shape a sound against the beat it will sit in." },
 ];
 
 const loopSpots: Spot[] = [
   { x: 5.5, y: 28, title: "Record", body: "Records one pass into the next empty layer with the sound you have loaded. From a standstill it counts in one bar; if the loop is already playing it waits for the top of the loop." },
   { x: 12.5, y: 30, title: "Play · stop, and the beat", body: "Starts and stops every layer together. The four marks underneath pulse with the beat; the first of each bar lights in lime." },
   { x: 25, y: 28, title: "A recorded layer", body: "Shows the sound it holds. Tap to mute, drag up or down for volume, touch and hold to edit its notes or clear it. The line along the bottom is where the loop is." },
-  { x: 63, y: 28, title: "An empty layer", body: "There are four. The next recording goes into the first empty one." },
+  { x: 81.5, y: 28, title: "An empty layer", body: "There are four. The next recording goes into the first empty one." },
   { x: 94.5, y: 28, title: "Tempo and settings", body: "Tempo, loop length (1, 2 or 4 bars), the click, snap, sharing the loop as audio or MIDI, and clearing everything." },
 ];
 
@@ -155,10 +155,10 @@ export default function Guide() {
             <p className="label">03 · Interface</p>
             <h2>The Play screen</h2>
             <p className="prose">
-              Where the app opens. A sound, a keyboard and eight controls. Tap a number to see what it is. In this
+              Where the app opens. A sound, eight controls, a loop recorder and a keyboard. Tap a number to see what it is. In this
               picture <strong>Tone</strong> is being dragged, so it is lit, and so is everything it affects.
             </p>
-            <Annotated src="/screens/ipad-play-2.jpg" width={1800} height={1298} spots={playSpots}
+            <Annotated src="/screens/ipad-play-3.jpg" width={1800} height={1298} spots={playSpots}
               alt="OpenFM Play screen on iPad with numbered marks on each control." />
             <h3>One gesture for every value</h3>
             <p className="prose">
@@ -175,7 +175,7 @@ export default function Guide() {
               The whole synthesizer. The diagram on the left is the sound's wiring and also its main control: you drag
               the operators themselves.
             </p>
-            <Annotated src="/screens/ipad-edit-2.jpg" width={1800} height={1298} spots={editSpots}
+            <Annotated src="/screens/ipad-edit-3.jpg" width={1800} height={1298} spots={editSpots}
               alt="OpenFM Edit screen on iPad with numbered marks on the routing diagram, envelope and value cells." />
             <h3>Reading the highlight</h3>
             <p className="prose">
@@ -197,8 +197,8 @@ export default function Guide() {
               It works like a loop pedal: one press to record, and what you played keeps going round while you add
               the next part.
             </p>
-            <Annotated src="/screens/loop-strip.jpg" width={1668} height={330} spots={loopSpots} stacked
-              alt="The OpenFM loop strip: record and stop buttons, four layer tiles, two of them holding loops, and the tempo." />
+            <Annotated src="/screens/loop-strip-2.jpg" width={1668} height={330} spots={loopSpots} stacked
+              alt="The OpenFM loop strip: record and stop buttons, four layer tiles, three of them holding loops named Kick, Hat and Octave Bass, and the tempo." />
 
             <h3>Record a loop</h3>
             <ol className="steps">

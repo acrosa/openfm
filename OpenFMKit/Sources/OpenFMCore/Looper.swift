@@ -223,6 +223,35 @@ public final class Looper {
                              patch: Data(patch.bytes), effects: effects(for: patch, from: synth.audioUnit))
     }
 
+    /// Fills three layers with a short beat and bass line from the factory
+    /// sounds. For screenshots and demos; pair it with a looper that has no
+    /// directory so nothing is saved.
+    public func loadDemo() {
+        func hits(_ beats: [Double], note: Int, length: Double = 0.25, velocity: Int = 100) -> [LoopNote] {
+            beats.map { LoopNote(start: $0, length: length, note: note, velocity: velocity) }
+        }
+        let bass: [(Double, Int)] = [(0, 40), (0.5, 40), (1, 40), (1.75, 40), (2.25, 40), (2.75, 40), (3, 43), (3.5, 41),
+                                     (4, 40), (4.5, 40), (5, 40), (5.75, 40), (6.25, 40), (6.75, 38), (7.25, 41), (7.75, 40)]
+        let parts: [(sound: String, notes: [LoopNote], volume: Double)] = [
+            ("Kick", hits([0, 1, 2, 3, 4, 5, 6, 7], note: 60), 1),
+            ("Hat", hits([0.5, 1.5, 2.5, 3.5, 3.75, 4.5, 5.5, 6.5, 7.25, 7.5, 7.75], note: 60, velocity: 80), 0.6),
+            ("Octave Bass", bass.map { LoopNote(start: $0.0, length: 0.25, note: $0.1 + 12) }, 0.85),
+        ]
+        bars = 2
+        for (i, part) in parts.enumerated() {
+            guard let patch = FactoryPresets.all.first(where: { $0.name == part.sound }) else { continue }
+            var layer = Layer(id: i)
+            layer.sound = part.sound
+            layer.patch = patch
+            layer.notes = part.notes
+            layer.volume = part.volume
+            layers[i] = layer
+            load(i, notes: part.notes, patch: patch, into: synth.audioUnit)
+            synth.audioUnit.looperSetLayer(i, volume: Float(part.volume))
+        }
+        startPolling()
+    }
+
     // MARK: Notes and engine events
 
     /// Packs notes as the engine's 16-byte event records.
