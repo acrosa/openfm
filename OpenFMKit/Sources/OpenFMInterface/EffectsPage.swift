@@ -131,7 +131,9 @@ private struct EffectPad: View {
                                     let now = model.value(p)
                                     if now != old, now == p.range.lowerBound || now == p.range.upperBound { Haptics.bump() }
                                 }
-                                model.setReadout(title: kind.title.uppercased(),
+                                // Say so when the effect is silent, or the drag seems to do nothing.
+                                let off = model.value(kind.mix) <= 0.005
+                                model.setReadout(title: kind.title.uppercased() + (off ? " · MIX IS OFF" : ""),
                                                  value: "\(model.string(kind.x)) · \(model.string(kind.y))")
                             }
                     )
