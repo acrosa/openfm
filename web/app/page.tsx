@@ -6,6 +6,7 @@ const features = [
   ["Play first", "Opens on a sound, a keyboard and eight controls. Pick, shape, play. Nothing to learn before the first note."],
   ["Drag everything", "Operators, envelopes and effects are things you move. Whatever you touch lights up, along with everything it changes."],
   ["Six operators, 32 algorithms", "The classic FM voice in full: 16 voices, LFO, feedback, velocity, keyboard scaling, chorus, delay and reverb."],
+  ["Loop it", "A four-layer loop recorder sits above the keyboard. Each layer keeps its own sound, so one device makes a whole track."],
   ["Bring your patches", "Import DX7 SysEx banks and single voices. Share any sound as a small, readable file."],
   ["Standalone and AUv3", "Plug into speakers or a mixer and play from any MIDI keyboard, or load it in your iPad DAW with full automation."],
   ["Open all the way down", "Apache 2.0. The interface is its own module on a small API, so you can build a different one."],
@@ -73,7 +74,7 @@ export default function Home() {
         <section className="grid12 block">
           <div className="side">
             <p className="label">
-              <b>What it does</b> Six things
+              <b>What it does</b> Seven things
             </p>
           </div>
           <ol className="main index">
@@ -94,10 +95,10 @@ export default function Home() {
             </p>
           </div>
           <div className="main">
-            <h2>Zero to a bass line in ten minutes.</h2>
+            <h2>Zero to a track in ten minutes.</h2>
             <p className="prose">
               The guide explains every control with pictures you can poke, lets you hear FM in your browser, and builds
-              an industrial bass and lead from a single sine wave.
+              two sounds from a single sine wave, then stacks them into an industrial track with drums.
             </p>
             <div className="actions">
               <Link className="button primary" href="/guide">

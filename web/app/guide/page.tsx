@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { Annotated, type Spot } from "@/components/Annotated";
 import { Footer, GitHubButton, Nav } from "@/components/Chrome";
 import { Playground } from "@/components/Playground";
@@ -6,7 +7,7 @@ import { Song } from "@/components/Song";
 
 export const metadata: Metadata = {
   title: "Guide",
-  description: "Every OpenFM control explained, FM synthesis in plain words, and a tutorial that builds an industrial bass and lead.",
+  description: "Every OpenFM control explained, FM synthesis in plain words, the loop recorder, and a tutorial that builds an industrial track.",
 };
 
 // Positions were measured on a 1600 × 1103 capture whose left 44 px and right
@@ -45,13 +46,22 @@ const editSpots: Spot[] = [
   { ...at(700, 815), title: "More", body: "Rarely needed settings stay folded until you open them." },
 ];
 
+const loopSpots: Spot[] = [
+  { x: 5.5, y: 28, title: "Record", body: "Records one pass into the next empty layer with the sound you have loaded. From a standstill it counts in one bar; if the loop is already playing it waits for the top of the loop." },
+  { x: 12.5, y: 30, title: "Play · stop, and the beat", body: "Starts and stops every layer together. The four marks underneath pulse with the beat; the first of each bar lights in lime." },
+  { x: 25, y: 28, title: "A recorded layer", body: "Shows the sound it holds. Tap to mute, drag up or down for volume, touch and hold to edit its notes or clear it. The line along the bottom is where the loop is." },
+  { x: 63, y: 28, title: "An empty layer", body: "There are four. The next recording goes into the first empty one." },
+  { x: 94.5, y: 28, title: "Tempo and settings", body: "Tempo, loop length (1, 2 or 4 bars), the click, snap, sharing the loop as audio or MIDI, and clearing everything." },
+];
+
 const sections = [
   ["fm", "FM in one minute"],
   ["try", "Hear it"],
   ["play", "The Play screen"],
   ["edit", "The Edit screen"],
-  ["tutorial", "Tutorial: industrial loop"],
-  ["loops", "Recording loops"],
+  ["loops", "The loop recorder"],
+  ["tutorial", "Tutorial: a track"],
+  ["hosts", "In GarageBand"],
   ["patches", "Bringing in sounds"],
 ];
 
@@ -77,7 +87,7 @@ export default function Guide() {
             <h1 style={{ fontSize: "clamp(36px, 6vw, 72px)", margin: "12px 0 20px" }}>Learn OpenFM.</h1>
             <p className="prose">
               You don't need to understand FM to enjoy it: pick a sound and play. But ten minutes here will make every
-              control make sense. Read top to bottom, or jump to the tutorial.
+              control make sense. Read top to bottom, or jump to the tutorial and build a track.
             </p>
           </section>
 
@@ -175,12 +185,79 @@ export default function Guide() {
             </p>
           </section>
 
-          <section className="section" id="tutorial">
-            <p className="label">05 · Tutorial</p>
-            <h2>Build an industrial loop</h2>
+          <section className="section" id="loops">
+            <p className="label">05 · Loops</p>
+            <h2>The loop recorder</h2>
             <p className="prose">
-              Two sounds from scratch, a growling bass and a glassy alarm of a lead, and a two-bar riff to play with
-              them. Press play to hear where this is going.
+              Above the keyboard sits a four-layer loop recorder. Record a riff and it loops; pick another sound and
+              play or record over it. <strong>Each layer keeps the sound it was recorded with</strong>, so a bass
+              loop stays a bass when you switch to a lead.
+            </p>
+            <p className="prose analogy">
+              It works like a loop pedal: one press to record, and what you played keeps going round while you add
+              the next part.
+            </p>
+            <Annotated src="/screens/loop-strip.jpg" width={1668} height={330} spots={loopSpots} stacked
+              alt="The OpenFM loop strip: record and stop buttons, four layer tiles, two of them holding loops, and the tempo." />
+
+            <h3>Record a loop</h3>
+            <ol className="steps">
+              <li><div>
+                <div className="do">Load a sound and tap <K>●</K>.</div>
+                <div className="why">You get a one-bar count-in: four clicks, counted down on the button.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Play. After two bars the recording stops by itself and starts looping.</div>
+                <div className="why">Layer 1 now shows the sound's name, with a line moving across it as the loop plays.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Pick another sound and play along, or tap <K>●</K> again to record it as layer 2.</div>
+                <div className="why">Recording waits for the loop to come round, so the layers stay lined up: the layer counts down <K>IN 3</K> <K>IN 2</K> <K>IN 1</K>. The first layer still plays its own sound.</div>
+              </div></li>
+            </ol>
+
+            <h3>Staying in time</h3>
+            <p className="prose">
+              You don't sync anything by hand. Every layer shares one tempo and one length, recording always starts
+              at the top of the loop, and <strong>Snap</strong> moves each note onto the nearest sixteenth, so a
+              slightly early or late note still lands on the beat. Watch the four marks under the play button: they
+              pulse with the beat, and the first of each bar lights in lime.
+            </p>
+
+            <h3>Mix, fix, keep, share</h3>
+            <ol className="steps">
+              <li><div>
+                <div className="do">Tap a layer to mute it. Drag it up or down to set its volume.</div>
+                <div className="why">The fill inside a layer is its level, like an operator in the diagram. Muting layers in and out is the simplest way to turn a loop into an arrangement.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Touch and hold a layer → <K>Edit Notes…</K> to fix a note.</div>
+                <div className="why">The loop opens as a grid: time runs left to right, pitch bottom to top. Tap an empty square to add a note, drag a note to move it, select it to make it shorter, longer or delete it. The loop keeps playing while you edit.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Close the app whenever you like.</div>
+                <div className="why">Loops are saved as you go, with their sounds, levels and tempo, and are there when you come back.</div>
+              </div></li>
+              <li><div>
+                <div className="do">Tap <K>112 BPM</K> → <K>Audio</K> or <K>MIDI</K> to share.</div>
+                <div className="why">Audio is a WAV of the loop exactly as it plays. MIDI is the notes, one track per layer, for opening in GarageBand, Logic or any sequencer.</div>
+              </div></li>
+            </ol>
+            <figure style={{ margin: "28px 0 0", maxWidth: 520 }}>
+              <div className="shot" style={{ position: "relative", top: 0 }}>
+                <Image src="/screens/loop-editor.jpg" width={1164} height={1320} sizes="(max-width: 860px) 100vw, 520px"
+                  alt="The note editor: a grid with time running left to right and pitch bottom to top, holding three notes." />
+              </div>
+              <figcaption><b>Fig.</b> Edit Notes. Each square is a sixteenth; the bright lines are beats and bars.</figcaption>
+            </figure>
+          </section>
+
+          <section className="section" id="tutorial">
+            <p className="label">06 · Tutorial</p>
+            <h2>Make an industrial track</h2>
+            <p className="prose">
+              Two sounds built from scratch, two drums from the factory bank, and four loops stacked into a
+              two-bar track. Press play to hear where this is going, and tap a part to mute it.
             </p>
             <Song />
 
@@ -242,85 +319,53 @@ export default function Guide() {
               </div></li>
             </ol>
 
-            <h3>Play it</h3>
+            <h3>Build the track</h3>
             <p className="prose">
-              The riff is in <strong>E</strong>. The one “wrong” note, <strong>F</strong>, a half step above home, is
-              what makes it sound menacing. Read each lane left to right; every box is a sixteenth note.
+              Now stack it up with the loop recorder, one layer at a time, from the bottom: drums first, then bass,
+              then melody. Each lane in the player above is one layer; every box is a sixteenth note.
             </p>
             <ol className="steps">
               <li><div>
-                <div className="do">Load Rust Bass. Roll the octave dial down to <K>C1</K> and play the Bass lane: mostly <K>E</K>, with <K>G</K>, <K>F</K> and <K>D</K> at the ends of the bars.</div>
-                <div className="why">Keep the notes short and even. The gaps matter as much as the notes.</div>
+                <div className="do">Set up: tap <K>112 BPM</K> and check <K>TEMPO 112</K> <K>BARS 2</K> <K>SNAP ON</K>.</div>
+                <div className="why">Two bars is eight beats. Set the length before recording; it is fixed once the first layer exists.</div>
               </div></li>
               <li><div>
-                <div className="do">Load Siren Lead, octave dial at <K>C3</K>, and play the Lead lane: <K>E</K> <K>B</K> <K>G</K> … <K>F</K> <K>E</K>, then up to <K>D</K> <K>C</K> <K>B</K> <K>G</K>.</div>
-                <div className="why">Hold the long notes and let the delayed vibrato come in.</div>
+                <div className="do"><strong>Kick.</strong> Load <K>Kick</K> from Drums. Tap <K>●</K>, wait for the count, then tap the same key near <K>C3</K> on every beat: eight hits.</div>
+                <div className="why">Four on the floor. Count along with the click: 1, 2, 3, 4, 1, 2, 3, 4. Snap tidies up anything slightly off.</div>
               </div></li>
               <li><div>
-                <div className="do">Put them together: with Rust Bass loaded, tap <K>●</K> and record the bass lane. Then load Siren Lead and play the melody over it.</div>
-                <div className="why">The loop keeps the bass sound while you play the lead. More in <a href="#loops" style={{ textDecoration: "underline" }}>Recording loops</a>.</div>
+                <div className="do"><strong>Hat.</strong> Load <K>Hat</K>, tap <K>●</K>, and when the countdown ends play in the gaps between the kicks.</div>
+                <div className="why">Kick on the beat, hat off it: that alternation is the engine of most dance music. Drag the hat's layer down to about <K>VOL 60</K> so it sits behind the kick.</div>
+              </div></li>
+              <li><div>
+                <div className="do"><strong>Bass.</strong> Load Rust Bass and roll the octave dial down to <K>C1</K>. Tap <K>●</K> and play the Bass lane: mostly <K>E</K>, with <K>G</K>, <K>F</K> and <K>D</K> at the ends of the bars.</div>
+                <div className="why">Keep the notes short. The one “wrong” note, F, a half step above home, is what makes it sound menacing.</div>
+              </div></li>
+              <li><div>
+                <div className="do"><strong>Lead.</strong> Load Siren Lead, octave dial at <K>C3</K>. Play the Lead lane over the loop: <K>E</K> <K>B</K> <K>G</K> … <K>F</K> <K>E</K>, then up to <K>D</K> <K>C</K> <K>B</K> <K>G</K>. Record it as layer 4 when you like it.</div>
+                <div className="why">Hold the long notes and let the delayed vibrato come in. Or leave the fourth layer empty and keep improvising on top.</div>
+              </div></li>
+              <li><div>
+                <div className="do"><strong>Arrange.</strong> Start with only the kick. Bring in the hat, then the bass, then the lead. Drop the kick out for two bars and bring it back.</div>
+                <div className="why">Tapping layers on and off is the whole arrangement. If one note bothers you, fix it in <K>Edit Notes…</K> instead of recording again.</div>
+              </div></li>
+              <li><div>
+                <div className="do"><strong>Share.</strong> <K>112 BPM</K> → <K>Audio</K>.</div>
+                <div className="why">You get a WAV of the track as it sounds, ready to send.</div>
               </div></li>
             </ol>
             <p className="prose" style={{ marginTop: 20 }}>
-              These values are a starting point, not a recipe. Change one number and listen. That is how every FM
-              sound has ever been made.
+              These values and notes are a starting point, not a recipe. Change one thing and listen. That is how
+              every FM sound, and every track, has ever been made.
             </p>
           </section>
 
-          <section className="section" id="loops">
-            <p className="label">06 · Loops</p>
-            <h2>Recording loops</h2>
+          <section className="section" id="hosts">
+            <p className="label">07 · Hosts</p>
+            <h2>Inside GarageBand and other hosts</h2>
             <p className="prose">
-              The app has a small loop recorder above the keyboard: record a riff, it loops, pick another sound and
-              play or record over it. Up to four layers, and <strong>each layer keeps the sound it was recorded
-              with</strong>.
-            </p>
-            <p className="prose analogy">
-              It works like a loop pedal: one press to record, and what you played keeps going round while you add
-              the next part.
-            </p>
-            <h3>In the app</h3>
-            <ol className="steps">
-              <li><div>
-                <div className="do">Load a sound and tap <K>●</K> at the left of the loop strip.</div>
-                <div className="why">You get a one-bar count-in: four clicks, counted down on the button.</div>
-              </div></li>
-              <li><div>
-                <div className="do">Play. After two bars the recording stops by itself and starts looping.</div>
-                <div className="why">Layer 1 now shows the sound's name, with a line moving across it as the loop plays.</div>
-              </div></li>
-              <li><div>
-                <div className="do">Pick another sound and play along, or tap <K>●</K> again to record it as layer 2.</div>
-                <div className="why">Recording waits for the loop to come round, so the layers stay lined up: the layer counts down <K>IN 3</K> <K>IN 2</K> <K>IN 1</K> and the four marks under the play button pulse with the beat. The first layer still plays its own sound.</div>
-              </div></li>
-              <li><div>
-                <div className="do">Tap a layer to mute it. Drag it up or down to set its volume. Touch and hold it to clear it. <K>■</K> stops everything.</div>
-                <div className="why">The fill inside a layer is its level, like an operator in the diagram. Muting layers in and out is the simplest way to turn a loop into an arrangement.</div>
-              </div></li>
-              <li><div>
-                <div className="do">Tap <K>112 BPM</K> for tempo, loop length (1, 2 or 4 bars), the click, and snap.</div>
-                <div className="why">Snap moves your notes onto the nearest sixteenth, so a slightly loose take still loops tightly. Set the length before you record the first layer.</div>
-              </div></li>
-            </ol>
-            <h3>Fix a note, keep the loop, take it with you</h3>
-            <ol className="steps">
-              <li><div>
-                <div className="do">Touch and hold a layer and choose <K>Edit Notes…</K>.</div>
-                <div className="why">The loop opens as a grid: time runs left to right, pitch bottom to top. Tap an empty square to add a note, drag a note to move it, select it to make it shorter, longer or delete it. The loop keeps playing while you edit.</div>
-              </div></li>
-              <li><div>
-                <div className="do">Close the app whenever you like.</div>
-                <div className="why">Loops are saved as you go, with their sounds, levels and tempo, and are there when you come back.</div>
-              </div></li>
-              <li><div>
-                <div className="do">Tap <K>112 BPM</K> → <K>Audio</K> or <K>MIDI</K> to share the loop.</div>
-                <div className="why">Audio is a WAV file of the loop exactly as it plays, ready to send to anyone. MIDI is the notes, one track per layer, for opening in GarageBand, Logic or any other sequencer.</div>
-              </div></li>
-            </ol>
-            <h3>In a host, with GarageBand (free)</h3>
-            <p className="prose">
-              For full songs, run OpenFM inside a host app as a plug-in. The host records; OpenFM makes the sound.
-              The loop strip is hidden there, because the host does that job.
+              For full songs, with many tracks, editing and mixing, run OpenFM inside a host app as a plug-in. The
+              host records; OpenFM makes the sound. The loop strip is hidden there, because the host does that job.
             </p>
             <ol className="steps">
               <li><div>
@@ -350,10 +395,16 @@ export default function Guide() {
               <strong>Cubasis</strong> for full songs. Every OpenFM control can be automated from the host. The plug-in
               is new, so if a host misbehaves, please open an issue on GitHub.
             </p>
+            <p className="prose" style={{ marginTop: 20 }}>
+              Menu names move around a little between GarageBand versions. Other hosts work the same way:{" "}
+              <strong>AUM</strong> or <strong>Loopy Pro</strong> for live looping, <strong>Logic Pro</strong> or{" "}
+              <strong>Cubasis</strong> for full songs. Every OpenFM control can be automated from the host. The plug-in
+              is new, so if a host misbehaves, please open an issue on GitHub.
+            </p>
           </section>
 
           <section className="section" id="patches">
-            <p className="label">07 · Sounds</p>
+            <p className="label">08 · Sounds</p>
             <h2>Bringing in sounds</h2>
             <p className="prose">
               OpenFM reads <strong>DX7 SysEx</strong> files (.syx), the format thousands of classic FM sounds are shared
