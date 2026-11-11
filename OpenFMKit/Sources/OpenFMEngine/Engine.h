@@ -44,6 +44,11 @@ class Engine {
     kReverbDamp,      // 0..1
     kVolume,          // 0..1
     kBendRange,       // semitones
+    kMono,            // 0 poly, 1 one voice with legato
+    kGlide,           // seconds a legato note takes to arrive (mono)
+    kArpMode,         // 0 off, 1 up, 2 down, 3 up and down
+    kArpRate,         // 0..3: 1, 2, 3 or 4 steps per beat
+    kTempo,           // beats per minute, for the arpeggiator
     kFxCount
   };
 
@@ -96,9 +101,17 @@ class Engine {
   void drainQueues();
   void syncParams();
   void computeBlock();
-  void noteOn(int note, int velocity);
-  void noteOff(int note);
+  // Keys arrive at keyDown/keyUp, pass through the arpeggiator, then the
+  // mono note stack, and reach the voices at startNote/stopNote.
+  void keyDown(int note, int velocity);
+  void keyUp(int note);
+  void stepArp();
+  void playNote(int note, int velocity);
+  void releaseNote(int note);
+  int startNote(int note, int velocity);
+  void stopNote(int note);
   void allNotesOff();
+  void clearHeld();
 
   // Shared with other threads.
   std::atomic<uint8_t> pending_[kPatchSize];
@@ -119,6 +132,23 @@ class Engine {
   uint64_t clock_ = 0;
   bool sustain_ = false;
   int bend_ = 0x2000;
+  double sampleRate_ = 44100.0;
+
+  static constexpr int kMaxHeld = 16;
+  struct Held { uint8_t note; uint8_t velocity; };
+  // Mono: keys held, most recent last, and the slot that is sounding.
+  Held mono_[kMaxHeld];
+  int monoCount_ = 0;
+  int monoSlot_ = -1;
+  // Arpeggiator: keys held, lowest first.
+  Held arp_[kMaxHeld];
+  int arpCount_ = 0;
+  int arpIndex_ = 0;
+  int arpDirection_ = 1;
+  bool arpFresh_ = true;
+  int arpNote_ = -1;          // note sounding now, or -1
+  double arpCountdown_ = 0;   // samples until the next step
+  double arpGate_ = 0;        // samples until the sounding note is let go
 
   float block_[N];
   int blockPos_ = N;

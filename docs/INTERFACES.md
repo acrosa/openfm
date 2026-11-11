@@ -60,7 +60,10 @@ that read them redraw on their own.
 | Explain a parameter | `synth.title(param)`, `synth.hint(param)` |
 | Draw the output | `synth.scope(count:)`, `synth.activeVoices`, `Algorithm.previewWave(bytes: synth.bytes)` |
 | Load / capture a sound | `synth.load(patch, presetID:)`, `synth.patch` |
-| Undo edits | `synth.revert()`, `synth.restore(param)`, `synth.loadedValue(param)`, `synth.isEdited` |
+| Undo edits | `synth.undo()`, `synth.redo()`, `synth.canUndo`, `synth.revert()`, `synth.restore(param)`, `synth.loadedValue(param)`, `synth.isEdited` |
+| Bend and modulate | `synth.setPitchBend(-1...1)`, `synth.setModWheel(0...1)`; read `synth.pitchBend`, `synth.modWheel` |
+| Make a variation | `synth.vary()` — a near relative of the sound, one undo step |
+| Draw the overall envelope | `synth.mainCarrier` (the loudest carrier; read its rates and levels) |
 | Explain without changing | `synth.peek(param)`, `synth.peek(macro)`, `synth.post(title:value:)` → read `synth.peek` |
 | Hear a sound without a keyboard | `synth.audition()` |
 
@@ -75,14 +78,19 @@ Parameters: `Param.op(1...6, field)` for the 21 per-operator fields,
 `Param.enabled(op)`, the voice parameters (`.algorithm`, `.feedback`,
 `.lfoSpeed`, `.transpose`, `.pitchRate(n)`, …) and the effects
 (`.chorusMix`, `.delayTime`, `.reverbSize`, `.volume`, …).
+`Param.performance` holds how notes are played rather than how they sound:
+`.mono`, `.glide`, `.arpMode`, `.arpRate` and `.tempo`. They are global, like
+volume, and are not saved with a sound or undone.
 
 Call `beginEditing` / `endEditing` around continuous gestures. It is what lets
-a plug-in host record automation, and it drives `focus` and `affectedOps`.
+a plug-in host record automation, it drives `focus` and `affectedOps`, and it
+makes the whole drag a single undo step.
 
 ### `PresetStore` — the library
 
 `presets.all`, `presets.sections`, `presets.neighbor(of:offset:)`,
-`presets.save(_:)`, `presets.delete(_:)`, `presets.importFile(at:)`.
+`presets.save(_:)`, `presets.delete(_:)`, `presets.importFile(at:)`,
+`presets.toggleFavourite(_:)`, `presets.isFavourite(_:)`, `presets.favouritePresets`.
 
 ### `Looper` — the loop recorder (optional)
 

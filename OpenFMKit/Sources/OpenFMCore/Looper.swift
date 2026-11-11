@@ -126,6 +126,8 @@ public final class Looper {
 
     private func push() {
         synth.audioUnit.looperSetTempo(Float(tempo), bars: bars, metronome: metronome, quantize: quantize)
+        // The arpeggiator keeps time with the loop.
+        synth.set(.tempo, to: tempo)
         save()
     }
 
@@ -143,6 +145,8 @@ public final class Looper {
         synth.audioUnit.looperSetLayer(layer, volume: 1)
         synth.audioUnit.looperRecordLayer(layer)
         armedLayer = layer
+        requestedLayer = layer
+        requestAge = 0
         startPolling()
         return layer
     }
@@ -212,7 +216,7 @@ public final class Looper {
     private func effects(for patch: Patch, from unit: OpenFMAudioUnit) -> [NSNumber] {
         // A patch stores nine effect values; volume and bend range are global.
         let own = patch.effects.values.map { NSNumber(value: $0) }
-        let global = [Param.volume, Param.bendRange].map {
+        let global = ([Param.volume, Param.bendRange] + Param.performance).map {
             NSNumber(value: unit.value(forAddress: AUParameterAddress($0.address)))
         }
         return own + global
@@ -328,11 +332,25 @@ public final class Looper {
             }
             save()
         }
+        // The audio thread takes a moment to pick up a request to record.
+        // Until it has (or a second has passed), the layer is still waiting.
+        if let requested = requestedLayer {
+            requestAge += 1
+            if recordingLayer == requested || armedLayer == requested || state.countingIn || requestAge > 30 {
+                requestedLayer = nil
+            } else {
+                armedLayer = requested
+            }
+        }
         // A layer that was armed but never got to record goes back to empty.
         for i in layers.indices where !layers[i].hasContent && layers[i].sound != nil {
             if recordingLayer != i, armedLayer != i, !state.countingIn { layers[i] = Layer(id: i) }
         }
     }
+
+    /// A layer asked to record that the audio thread has not yet confirmed.
+    @ObservationIgnored private var requestedLayer: Int?
+    @ObservationIgnored private var requestAge = 0
 
     private func startPolling() {
         guard timer == nil else { return }

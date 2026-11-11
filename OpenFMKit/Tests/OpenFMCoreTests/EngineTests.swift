@@ -88,6 +88,75 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(unit.activeVoices, 16)
     }
 
+    /// Rising zero crossings per second over the last part of `samples`.
+    private func pitch(_ samples: [Float], sampleRate: Double = 48000) -> Double {
+        let tail = Array(samples.suffix(Int(sampleRate * 0.2)))
+        let crossings = zip(tail, tail.dropFirst()).filter { $0 <= 0 && $1 > 0 }.count
+        return Double(crossings) * sampleRate / Double(tail.count)
+    }
+
+    func testMonoPlaysOneVoiceAndGlidesBetweenOverlappingNotes() throws {
+        let unit = try makeUnit()
+        unit.setValue(0, forAddress: 206)
+        unit.setValue(1, forAddress: 211)     // mono
+        unit.setValue(0.2, forAddress: 212)   // glide
+
+        unit.noteOn(57, velocity: 100)        // A 220
+        XCTAssertEqual(pitch(try render(unit, seconds: 0.4)), 220, accuracy: 6)
+        unit.noteOn(69, velocity: 100)        // A 440, overlapping
+        let sliding = pitch(try render(unit, seconds: 0.1))
+        XCTAssertEqual(unit.activeVoices, 1, "the second key moves the same voice")
+        XCTAssertGreaterThan(sliding, 230)
+        XCTAssertLessThan(sliding, 430, "part-way through the slide")
+        XCTAssertEqual(pitch(try render(unit, seconds: 0.5)), 440, accuracy: 6)
+
+        // Letting go of the upper key falls back to the one still held.
+        unit.noteOff(69)
+        XCTAssertEqual(pitch(try render(unit, seconds: 0.6)), 220, accuracy: 6)
+        XCTAssertEqual(unit.activeVoices, 1)
+        unit.noteOff(57)
+        _ = try render(unit, seconds: 0.5)
+        XCTAssertEqual(unit.activeVoices, 0)
+
+        // Poly again: two keys, two voices.
+        unit.setValue(0, forAddress: 211)
+        unit.noteOn(57, velocity: 100)
+        unit.noteOn(69, velocity: 100)
+        _ = try render(unit, seconds: 0.1)
+        XCTAssertEqual(unit.activeVoices, 2)
+    }
+
+    func testArpeggiatorStepsThroughHeldKeysInTime() throws {
+        let unit = try makeUnit()
+        unit.setValue(0, forAddress: 206)
+        unit.setValue(1, forAddress: 213)     // up
+        unit.setValue(3, forAddress: 214)     // four steps per beat
+        unit.setValue(120, forAddress: 215)   // eight steps a second
+        for note: UInt8 in [60, 64, 67] { unit.noteOn(note, velocity: 100) }
+
+        // The init voice starts and stops at once, so each step is a burst.
+        let samples = try render(unit, seconds: 2)
+        let window = 240
+        let loud = stride(from: 0, to: samples.count - window, by: window).map { start in
+            samples[start..<(start + window)].contains { abs($0) > 0.02 }
+        }
+        let onsets = zip(loud, loud.dropFirst()).filter { !$0 && $1 }.count + (loud[0] ? 1 : 0)
+        XCTAssertEqual(Double(onsets), 16, accuracy: 1)
+        XCTAssertLessThanOrEqual(unit.activeVoices, 1)
+
+        for note: UInt8 in [60, 64, 67] { unit.noteOff(note) }
+        _ = try render(unit, seconds: 0.5)
+        XCTAssertEqual(unit.activeVoices, 0)
+        XCTAssertEqual(peak(try render(unit, seconds: 0.2)), 0, accuracy: 1e-4, "nothing keeps stepping")
+
+        // Switching it off with keys down lets go of the sounding note.
+        unit.noteOn(60, velocity: 100)
+        _ = try render(unit, seconds: 0.05)
+        unit.setValue(0, forAddress: 213)
+        _ = try render(unit, seconds: 0.5)
+        XCTAssertEqual(unit.activeVoices, 0)
+    }
+
     func testParameterTreeDrivesTheEngine() throws {
         let unit = try makeUnit()
         let tree = try XCTUnwrap(unit.parameterTree)

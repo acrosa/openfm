@@ -138,7 +138,7 @@ final class GestureTests: XCTestCase {
         XCTAssertEqual(feedback.value as? String, held)
     }
 
-    /// Swiping across the sound name rolls through the sounds; tapping it
+    /// Swiping down or up the sound name rolls through the sounds; tapping it
     /// still opens the browser. The app always opens in Play.
     func testSwipingTheSoundNameCyclesSounds() {
         app.launchArguments = ["-openfm.preset", "Glass Keys"]
@@ -147,24 +147,31 @@ final class GestureTests: XCTestCase {
 
         let name = element("Sound: Glass Keys")
         let start = name.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -80, dy: 0)))
-        XCTAssertTrue(element("Sound: Felt Tines").waitForExistence(timeout: 5), "left is next")
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 80)))
+        XCTAssertTrue(element("Sound: Felt Tines").waitForExistence(timeout: 5), "down is next")
 
         let second = element("Sound: Felt Tines").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        second.press(forDuration: 0.1, thenDragTo: second.withOffset(CGVector(dx: 80, dy: 0)))
-        XCTAssertTrue(element("Sound: Glass Keys").waitForExistence(timeout: 5), "right goes back")
+        second.press(forDuration: 0.1, thenDragTo: second.withOffset(CGVector(dx: 0, dy: -80)))
+        XCTAssertTrue(element("Sound: Glass Keys").waitForExistence(timeout: 5), "up goes back")
 
-        // A longer swipe passes two, and the list wraps round at the ends.
+        // A longer swipe passes two.
         let third = element("Sound: Glass Keys").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        third.press(forDuration: 0.1, thenDragTo: third.withOffset(CGVector(dx: 150, dy: 0)))
-        XCTAssertTrue(element("Sound: Nylon Pluck").waitForExistence(timeout: 5), "two back from the first is the second to last")
+        third.press(forDuration: 0.1, thenDragTo: third.withOffset(CGVector(dx: 0, dy: 150)))
+        XCTAssertTrue(element("Sound: Hard Clav").waitForExistence(timeout: 5), "two on from the first is the third")
 
-        // A vertical drag on the name does nothing.
-        let fourth = element("Sound: Nylon Pluck").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        fourth.press(forDuration: 0.1, thenDragTo: fourth.withOffset(CGVector(dx: 0, dy: 90)))
-        XCTAssertTrue(element("Sound: Nylon Pluck").exists)
+        // The list wraps round at the ends: up from the first is the last.
+        for name in ["Hard Clav", "Felt Tines", "Glass Keys"] {
+            let from = element("Sound: \(name)").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            from.press(forDuration: 0.1, thenDragTo: from.withOffset(CGVector(dx: 0, dy: -80)))
+        }
+        XCTAssertTrue(element("Sound: Echo Pluck").waitForExistence(timeout: 5), "up from the first is the last")
 
-        element("Sound: Nylon Pluck").tap()
+        // A sideways drag on the name does nothing.
+        let fourth = element("Sound: Echo Pluck").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        fourth.press(forDuration: 0.1, thenDragTo: fourth.withOffset(CGVector(dx: 90, dy: 0)))
+        XCTAssertTrue(element("Sound: Echo Pluck").exists)
+
+        element("Sound: Echo Pluck").tap()
         XCTAssertTrue(app.navigationBars["Sounds"].waitForExistence(timeout: 5), "a tap still opens the browser")
         app.buttons["Done"].tap()
 

@@ -128,6 +128,12 @@ struct PresetBrowser: View {
                         .foregroundStyle(Theme.secondary)
                 }
                 Spacer(minLength: 8)
+                if store.isFavourite(preset) {
+                    Image(systemName: "star.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .accessibilityLabel("Favourite")
+                }
                 if current {
                     Image(systemName: "checkmark")
                         .font(.body.weight(.semibold))
@@ -139,6 +145,14 @@ struct PresetBrowser: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(current ? [.isSelected] : [])
+        .swipeActions(edge: .leading) {
+            Button(store.isFavourite(preset) ? "Unfavourite" : "Favourite",
+                   systemImage: store.isFavourite(preset) ? "star.slash" : "star") {
+                store.toggleFavourite(preset)
+                Haptics.tap()
+            }
+            .tint(Theme.accent)
+        }
         .swipeActions(edge: .trailing) {
             if !preset.isFactory {
                 Button("Delete", systemImage: "trash", role: .destructive) {

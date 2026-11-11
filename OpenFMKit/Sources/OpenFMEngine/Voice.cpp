@@ -189,6 +189,8 @@ void Voice::init(const uint8_t patch[156], int midinote, int velocity,
   midinote_ = midinote;
   velocity_ = velocity;
   down_ = true;
+  glide_ = 0;
+  glideStep_ = 0;
   bool keySync = patch[136] != 0;
   for (int op = 0; op < 6; op++) {
     if (keySync || wasIdle) {
@@ -202,6 +204,15 @@ void Voice::init(const uint8_t patch[156], int midinote, int velocity,
     fb_buf_[1] = 0;
   }
   configure(patch, true);
+}
+
+void Voice::glideTo(const uint8_t patch[156], int midinote, int blocks) {
+  // Keep sounding where the pitch is now, then close the distance.
+  glide_ += (midinote_ - midinote) * ((1 << 24) / 12);
+  midinote_ = midinote;
+  const int32_t distance = glide_ < 0 ? -glide_ : glide_;
+  glideStep_ = blocks > 0 ? std::max<int32_t>(1, distance / blocks) : distance;
+  configure(patch, false);
 }
 
 void Voice::update(const uint8_t patch[156]) {
@@ -223,7 +234,9 @@ void Voice::compute(int32_t *buf, const VoiceMod &mod) {
   int64_t amdepth = ((int64_t)ampmoddepth_ * (int64_t)mod.lfoDelay) / 99;
   int64_t amod = (((int64_t)(1 << 24) - mod.lfoValue) * amdepth) >> 24;
 
-  int32_t pitchKeyed = pitchmod + mod.pitchBend;
+  int32_t pitchKeyed = pitchmod + mod.pitchBend + glide_;
+  if (glide_ > 0) glide_ = std::max(0, glide_ - glideStep_);
+  else if (glide_ < 0) glide_ = std::min(0, glide_ + glideStep_);
   for (int op = 0; op < 6; op++) {
     params_[op].gain[0] = params_[op].gain[1];
     int32_t level = env_[op].getsample();

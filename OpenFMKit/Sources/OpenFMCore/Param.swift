@@ -172,9 +172,17 @@ extension Param {
     public static let volume = fx(9, "MASTER VOLUME", "VOLUME", 0...1, 0.8, .percent)
     public static let bendRange = fx(10, "PITCH BEND RANGE", "BEND", 0...12, 2, .semitones, step: 1)
 
-    public static let effectCount = 11
+    public static let mono = fx(11, "VOICE MODE", "VOICES", 0...1, 0, .choice(["POLY", "MONO"]), step: 1)
+    public static let glide = fx(12, "GLIDE TIME", "GLIDE", 0...2, 0.06, .seconds)
+    public static let arpMode = fx(13, "ARPEGGIATOR", "ARP", 0...3, 0, .choice(["OFF", "UP", "DOWN", "UP DOWN"]), step: 1)
+    public static let arpRate = fx(14, "ARPEGGIATOR RATE", "ARP RATE", 0...3, 1, .choice(["1/4", "1/8", "1/8T", "1/16"]), step: 1)
+    public static let tempo = fx(15, "TEMPO", "TEMPO", 40...240, 112, .plain, step: 1)
+
+    public static let effectCount = 16
+    /// How notes are played rather than how they sound. Global, like volume.
+    public static let performance: [Param] = [mono, glide, arpMode, arpRate, tempo]
     /// Effect parameters stored with a patch (volume and bend range are global).
     public static let patchEffects: [Param] = [chorusMix, chorusRate, chorusDepth, delayMix, delayTime,
                                         delayFeedback, reverbMix, reverbSize, reverbDamp]
-    public static let allEffects: [Param] = patchEffects + [volume, bendRange]
+    public static let allEffects: [Param] = patchEffects + [volume, bendRange] + performance
 }

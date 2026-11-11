@@ -46,6 +46,10 @@ class Voice {
   // enable mask (bit n = operator slot n, slot 0 = OP6).
   void init(const uint8_t patch[156], int midinote, int velocity, bool wasIdle);
 
+  // Moves a sounding note to another key without restarting its envelopes,
+  // sliding there over `blocks` render blocks (0 jumps).
+  void glideTo(const uint8_t patch[156], int midinote, int blocks);
+
   // Re-read every parameter while the note keeps sounding.
   void update(const uint8_t patch[156]);
 
@@ -75,6 +79,9 @@ class Voice {
   int32_t ampmodsens_[6];
   bool fixed_[6];
   bool enabled_[6];
+
+  int32_t glide_ = 0;       // pitch still to travel, octaves in Q24
+  int32_t glideStep_ = 0;   // per block
 
   int midinote_;
   int velocity_;

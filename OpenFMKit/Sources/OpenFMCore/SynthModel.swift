@@ -56,6 +56,13 @@ public final class SynthModel {
     /// The voice the macros are measured from.
     @ObservationIgnored private var macroBaseline: [UInt8] = []
 
+    /// Earlier and later states of the sound, for undo and redo.
+    private var undoStack: [Snapshot] = []
+    private var redoStack: [Snapshot] = []
+    /// The state before the edit in progress; kept only if something changes.
+    @ObservationIgnored private var pendingUndo: Snapshot?
+    @ObservationIgnored private var isGrouping = false
+
     @ObservationIgnored private var observerToken: AUParameterObserverToken?
     @ObservationIgnored private var parameters: [Int: AUParameter] = [:]
 
@@ -104,14 +111,21 @@ public final class SynthModel {
     public func set(_ p: Param, to newValue: Double) {
         let v = p.clamped(newValue)
         guard v != value(p) else { return }
+        armUndo()
         write(p, v)
-        // A direct edit becomes the new starting point for the macros.
-        if p.address < 166 { rebaseMacros() }
+        if p.address < 166 { absorb(p.address) }
     }
 
     private func write(_ p: Param, _ v: Double) {
+        if SynthModel.isUndoable(p.address), let before = pendingUndo {
+            pendingUndo = nil
+            undoStack.append(before)
+            if undoStack.count > 64 { undoStack.removeFirst() }
+            redoStack = []
+        }
         store(p.address, v)
-        isEdited = true
+        // How notes are played is not part of the sound.
+        if !Param.performance.contains(p) { isEdited = true }
         parameters[p.address]?.setValue(AUValue(v), originator: observerToken)
     }
 
@@ -136,9 +150,33 @@ public final class SynthModel {
         }
     }
 
+    /// Folds a direct edit into what the macros are measured from, so the
+    /// macros stay where they are and still return to the edited sound.
+    private func absorb(_ address: Int) {
+        guard macroBaseline.count == bytes.count else { return rebaseMacros() }
+        // A new algorithm changes which operators each macro reaches.
+        if address == 134 { return rebaseMacros() }
+        if address >= 160 {
+            macroBaseline[155] = bytes[155]
+        } else if address < 126 {
+            let p = Param.op(6 - address / 21, Param.OpField(rawValue: address % 21)!)
+            macroBaseline[address] = UInt8(p.clamped(Double(bytes[address]) - macroOffset(at: address)))
+        } else {
+            macroBaseline[address] = bytes[address]
+        }
+    }
+
+    /// How far the macros currently push the operator parameter at `address`.
+    private func macroOffset(at address: Int) -> Double {
+        guard address < 126, let field = Param.OpField(rawValue: address % 21) else { return 0 }
+        if field == .level, macroBaseline[address] == 0 { return 0 }
+        let isCarrier = Algorithm.all[Int(macroBaseline[134] & 31)].isCarrier(6 - address / 21)
+        return macroValues.reduce(0) { $0 + ($1.key.offsets(isCarrier: isCarrier)[field] ?? 0) * $1.value }
+    }
+
     private func hostChanged(_ address: Int, _ value: Double) {
         store(address, value)
-        if address < 166 { rebaseMacros() }
+        if address < 166 { absorb(address) }
     }
 
     private func syncFromAudioUnit() {
@@ -180,7 +218,116 @@ public final class SynthModel {
     /// Discards every edit since the sound was loaded or saved.
     public func revert() {
         guard let loadedPatch else { return }
+        let before = snapshot()
+        let steps = undoStack
         load(loadedPatch, presetID: presetID)
+        // Reverting is itself an edit that can be undone.
+        if before != snapshot() { undoStack = steps + [before] }
+    }
+
+    // MARK: Undo
+
+    private struct Snapshot: Equatable {
+        var bytes: [UInt8]
+        var effects: [Double]
+        var macroValues: [Macro: Double]
+        var macroBaseline: [UInt8]
+    }
+
+    /// The voice, operator switches and the effects saved with a sound can be
+    /// undone; volume and playing settings are left alone.
+    private static func isUndoable(_ address: Int) -> Bool {
+        address < 166 || (200..<(200 + Param.patchEffects.count)).contains(address)
+    }
+
+    private func snapshot() -> Snapshot {
+        Snapshot(bytes: bytes, effects: Param.patchEffects.map { value($0) },
+                 macroValues: macroValues, macroBaseline: macroBaseline)
+    }
+
+    /// Remembers the sound as it is now, to be kept if the next edit changes
+    /// it. A gesture arms once when it begins, so a whole drag is one step.
+    private func armUndo() {
+        if focus == nil, activeMacro == nil, !isGrouping { pendingUndo = snapshot() }
+    }
+
+    private func grouped(_ edits: () -> Void) {
+        pendingUndo = snapshot()
+        isGrouping = true
+        edits()
+        isGrouping = false
+        pendingUndo = nil
+    }
+
+    public var canUndo: Bool { !undoStack.isEmpty }
+    public var canRedo: Bool { !redoStack.isEmpty }
+
+    /// Steps back one edit: a whole drag, a tap, or one Vary.
+    public func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(snapshot())
+        apply(previous)
+    }
+
+    public func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(snapshot())
+        apply(next)
+    }
+
+    private func apply(_ s: Snapshot) {
+        if focus != nil || activeMacro != nil { endEditing() }
+        pendingUndo = nil
+        audioUnit.loadPatchData(Data(s.bytes))
+        bytes = s.bytes
+        for (p, v) in zip(Param.patchEffects, s.effects) {
+            effects[p.address - 200] = v
+            audioUnit.setValue(Float(v), forAddress: AUParameterAddress(p.address))
+        }
+        macroValues = s.macroValues
+        macroBaseline = s.macroBaseline
+        if let loadedPatch {
+            isEdited = loadedPatch.bytes != s.bytes || loadedPatch.effects.values != s.effects
+        } else {
+            isEdited = true
+        }
+    }
+
+    // MARK: Variations
+
+    /// Nudges the sound into a near relative of itself: modulator levels,
+    /// envelope speeds, detune and feedback move a little, and now and then a
+    /// modulator jumps to a neighbouring harmonic. One undo step.
+    public func vary(amount: Double = 0.5) {
+        var generator = SystemRandomNumberGenerator()
+        vary(amount: amount, using: &generator)
+    }
+
+    public func vary<G: RandomNumberGenerator>(amount: Double = 0.5, using generator: inout G) {
+        let amount = min(max(amount, 0), 1)
+        let algorithm = self.algorithm
+        func nudge(_ p: Param, by spread: Double) {
+            let reach = spread * amount
+            guard reach >= 0.5 else { return }
+            set(p, to: value(p) + Double.random(in: -reach...reach, using: &generator).rounded())
+        }
+        grouped {
+            for op in 1...6 where isOn(op) && value(.op(op, .level)) > 0 {
+                let carrier = algorithm.isCarrier(op)
+                if !carrier {
+                    nudge(.op(op, .level), by: 16)
+                    if !isFixed(op), Double.random(in: 0..<1, using: &generator) < 0.3 * amount {
+                        let step: Double = Bool.random(using: &generator) ? 1 : -1
+                        set(.op(op, .coarse), to: max(1, value(.op(op, .coarse)) + step))
+                    }
+                }
+                nudge(.op(op, .detune), by: 4)
+                nudge(.op(op, .rate2), by: carrier ? 10 : 20)
+                nudge(.op(op, .rate3), by: carrier ? 10 : 20)
+                if !carrier { nudge(.op(op, .level2), by: 16) }
+            }
+            nudge(.feedback, by: 3)
+        }
     }
 
     // MARK: Peek
@@ -212,20 +359,23 @@ public final class SynthModel {
 
     public func value(_ macro: Macro) -> Double { macroValues[macro] ?? 0 }
 
-    /// Moves a macro. Each one offsets several voice parameters from where
-    /// they were when the sound was loaded or last edited by hand.
+    /// Moves a macro. Each one offsets several voice parameters from the
+    /// sound as loaded. Editing a parameter by hand moves that starting
+    /// point and leaves the macros where they are.
     public func set(_ macro: Macro, to newValue: Double) {
         let v = min(max(newValue, -1), 1)
         guard v != value(macro) else { return }
+        armUndo()
         macroValues[macro] = v
         let algorithm = Algorithm.all[Int(macroBaseline[134] & 31)]
         for op in 1...6 {
-            for (field, amount) in macro.offsets(isCarrier: algorithm.isCarrier(op)) {
+            for field in macro.offsets(isCarrier: algorithm.isCarrier(op)).keys {
                 let p = Param.op(op, field)
                 let base = Double(macroBaseline[p.address])
                 // Leave silent operators silent.
                 if field == .level, base == 0 { continue }
-                let target = p.clamped(base + amount * v)
+                // Every macro reaching this parameter adds its share.
+                let target = p.clamped(base + macroOffset(at: p.address))
                 if target != value(p) { write(p, target) }
             }
         }
@@ -233,6 +383,7 @@ public final class SynthModel {
 
     public func beginEditing(_ macro: Macro) {
         if focus != nil || activeMacro != nil { endEditing() }
+        pendingUndo = snapshot()
         peek = nil
         activeMacro = macro
     }
@@ -261,6 +412,7 @@ public final class SynthModel {
     /// parameter affects, and tells the host a touch began.
     public func beginEditing(_ p: Param, with others: [Param] = []) {
         if let previous = focus, previous != p { endEditing() }
+        if focus == nil { pendingUndo = snapshot() }
         peek = nil
         focus = p
         lastTouched = p
@@ -284,6 +436,7 @@ public final class SynthModel {
         focus = nil
         activeParams = []
         customReadout = nil
+        pendingUndo = nil
     }
 
     public func setReadout(title: String, value: String) {
@@ -357,6 +510,11 @@ public final class SynthModel {
             case 200..<203: return "Thickens and widens the sound"
             case 203..<206: return "Repeats bouncing left and right"
             case 206..<209: return "Places the sound in a space"
+            case 211: return "One note at a time · overlapping notes slide instead of restarting"
+            case 212: return "How long a slide between overlapping notes takes · mono only"
+            case 213: return "Plays held keys one after another"
+            case 214: return "Arpeggio steps per beat"
+            case 215: return "Arpeggio speed · follows the loop tempo"
             default: return ""
             }
         }
@@ -408,6 +566,9 @@ public final class SynthModel {
         activeMacro = nil
         macroBaseline = newBytes
         macroValues = [:]
+        undoStack = []
+        redoStack = []
+        pendingUndo = nil
         var kept = patch
         kept.effects.values = Param.patchEffects.map { value($0) }
         loadedPatch = kept
@@ -454,6 +615,29 @@ public final class SynthModel {
             for held in latchedNotes where !pressedNotes.contains(held) { audioUnit.noteOff(UInt8(clamping: held)) }
             latchedNotes = []
         }
+    }
+
+    /// Where the on-screen bender and wheel are, for drawing them.
+    public private(set) var pitchBend = 0.0
+    public private(set) var modWheel = 0.0
+
+    /// Bends every sounding note: -1...1 of the bend range, 0 is centre.
+    public func setPitchBend(_ amount: Double) {
+        pitchBend = min(max(amount, -1), 1)
+        audioUnit.sendPitchBend(UInt16(8192 + (pitchBend * 8191).rounded()))
+    }
+
+    /// Adds vibrato, 0...1, like a keyboard's modulation wheel.
+    public func setModWheel(_ amount: Double) {
+        modWheel = min(max(amount, 0), 1)
+        audioUnit.sendController(1, value: UInt8((modWheel * 127).rounded()))
+    }
+
+    /// The loudest carrier that is switched on: the operator whose envelope
+    /// best stands for how the whole sound rises and fades.
+    public var mainCarrier: Int {
+        let carriers = algorithm.carriers.filter { isOn($0) }
+        return carriers.max { value(.op($0, .level)) < value(.op($1, .level)) } ?? algorithm.carriers.first ?? 1
     }
 
     /// Stops everything at once.

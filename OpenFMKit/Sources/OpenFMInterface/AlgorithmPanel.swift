@@ -9,9 +9,48 @@ import SwiftUI
 struct AlgorithmPanel: View {
     @Environment(SynthModel.self) private var model
     var compact = false
+    /// Lays the parts out in a row, for a short, wide strip above the editor.
+    var sideways = false
     @State private var showPicker = false
 
     var body: some View {
+        Group {
+            if sideways { row } else { column }
+        }
+        .padding(Theme.gutter)
+        .sheet(isPresented: $showPicker) {
+            AlgorithmPicker()
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    private var row: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                AlgorithmScrubber(showPicker: $showPicker)
+                Spacer(minLength: 8)
+                FieldGrid(columns: 1) {
+                    DragField(param: .feedback)
+                }
+            }
+            .frame(width: 112)
+
+            VStack(spacing: 4) {
+                AlgorithmGraph()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Text("DRAG   ↑ LEVEL   → RATIO   ·   DOUBLE-TAP ON / OFF")
+                    .labelStyle(9)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("WAVE").labelStyle(9).frame(height: 16)
+                WavePreview()
+            }
+            .frame(width: 200)
+        }
+    }
+
+    private var column: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
                 AlgorithmScrubber(showPicker: $showPicker)
@@ -39,11 +78,6 @@ struct AlgorithmPanel: View {
                 WavePreview()
                     .frame(height: 64)
             }
-        }
-        .padding(Theme.gutter)
-        .sheet(isPresented: $showPicker) {
-            AlgorithmPicker()
-                .presentationDetents([.medium, .large])
         }
     }
 }

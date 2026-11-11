@@ -23,14 +23,17 @@ Status: pre-release. Free, no ads, no subscriptions. Apache 2.0.
 - LFO (six waves, delay, pitch and amplitude depth), feedback, velocity
   sensitivity, keyboard level and rate scaling
 - Chorus, ping-pong delay and reverb on XY pads
-- One-cycle waveform preview and a live oscilloscope
+- One-cycle waveform preview, a live oscilloscope and an envelope picture
 - Four-layer loop recorder: each layer keeps the sound it was recorded with
-- Multi-touch keyboard with velocity by touch position, an octave dial and a latching hold
+- Multi-touch keyboard with velocity by touch position, an octave dial, a latching hold,
+  and pitch bend and modulation strips
+- Mono mode with legato glide, and an arpeggiator that follows the loop tempo
+- Undo and redo for every edit; Vary for near relatives of a sound; favourites
 - CoreMIDI input from every connected source, plus an "OpenFM" virtual
   destination for other apps
 - AUv3 instrument with a full parameter tree for host automation and state
   save/restore
-- Play mode with four shape macros for people who just want to play; the full editor behind one switch
+- Play mode with five macros (Tone and a full ADSR) for people who just want to play; the full editor behind one switch
 - Import DX7 SysEx (bulk and single voices) and OpenFM patch files; share any sound as a file
 - Presets saved as readable JSON; an original factory bank
 - Replaceable interface: the UI is its own module on a small public API
@@ -101,9 +104,10 @@ and the plug-in always sound the same.
 
 ### Simple and deep
 
-The interface always opens in **Play**: the sound's name, a live scope, four shape
-macros (Tone, Attack, Decay, Release), chorus/echo/reverb/volume, Sounds and
-Import. **Edit** is one tap away and shows everything — routing, operators,
+The interface always opens in **Play**: the sound's name, a live scope and an
+envelope picture, five macros (Attack, Decay, Sustain, Release and Tone), feedback,
+vibrato and transpose, chorus/echo/reverb/volume, mono, glide and the arpeggiator,
+Sounds, Import and Vary. **Edit** is one tap away and shows everything — routing, operators,
 envelopes, LFO, effects — with the rarely used sections folded.
 
 ### Importing sounds

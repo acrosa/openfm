@@ -66,6 +66,11 @@ const FxParam kFxParams[Engine::kFxCount] = {
     {"reverb_damp", "Reverb Damping", 0, 1, kAudioUnitParameterUnit_Generic},
     {"volume", "Volume", 0, 1, kAudioUnitParameterUnit_Generic},
     {"bend_range", "Pitch Bend Range", 0, 12, kAudioUnitParameterUnit_MIDINoteNumber},
+    {"mono", "Mono", 0, 1, kAudioUnitParameterUnit_Boolean},
+    {"glide", "Glide Time", 0, 2, kAudioUnitParameterUnit_Seconds},
+    {"arp_mode", "Arpeggiator", 0, 3, kAudioUnitParameterUnit_Indexed},
+    {"arp_rate", "Arpeggiator Rate", 0, 3, kAudioUnitParameterUnit_Indexed},
+    {"tempo", "Tempo", 40, 240, kAudioUnitParameterUnit_BPM},
 };
 
 // Realtime-safe: only touches atomics.
@@ -496,6 +501,11 @@ struct RenderState {
 
 - (void)sendController:(uint8_t)controller value:(uint8_t)value {
     _engine->pushEvent(Engine::kQueueUI, 0xb0, controller & 0x7f, value & 0x7f);
+}
+
+- (void)sendPitchBend:(uint16_t)value {
+    const uint16_t v = std::min<uint16_t>(value, 0x3fff);
+    _engine->pushEvent(Engine::kQueueUI, 0xe0, v & 0x7f, (v >> 7) & 0x7f);
 }
 
 - (void)receiveMIDIStatus:(uint8_t)status data1:(uint8_t)data1 data2:(uint8_t)data2 {

@@ -77,6 +77,11 @@ Engine::Engine() {
   fx_[kReverbDamp].store(0.4f);
   fx_[kVolume].store(0.8f);
   fx_[kBendRange].store(2.0f);
+  fx_[kMono].store(0.0f);
+  fx_[kGlide].store(0.06f);
+  fx_[kArpMode].store(0.0f);
+  fx_[kArpRate].store(1.0f);
+  fx_[kTempo].store(112.0f);
   std::memset(scope_, 0, sizeof(scope_));
   std::memset(block_, 0, sizeof(block_));
 }
@@ -99,6 +104,8 @@ void Engine::prepare(double sampleRate) {
   reverb_.prepare(sampleRate);
 
   for (auto &slot : slots_) slot = Slot();
+  sampleRate_ = sampleRate;
+  clearHeld();
   lfo_ = Lfo();
   lfo_.reset((const char *)patch_ + 137);
   seenGeneration_ = 0;
@@ -169,11 +176,11 @@ void Engine::drainQueues() {
 void Engine::handleMidi(uint8_t status, uint8_t data1, uint8_t data2) {
   switch (status & 0xf0) {
     case 0x80:
-      noteOff(data1 & 0x7f);
+      keyUp(data1 & 0x7f);
       break;
     case 0x90:
-      if (data2 == 0) noteOff(data1 & 0x7f);
-      else noteOn(data1 & 0x7f, data2 & 0x7f);
+      if (data2 == 0) keyUp(data1 & 0x7f);
+      else keyDown(data1 & 0x7f, data2 & 0x7f);
       break;
     case 0xb0:
       switch (data1) {
@@ -209,7 +216,158 @@ void Engine::handleMidi(uint8_t status, uint8_t data1, uint8_t data2) {
   }
 }
 
-void Engine::noteOn(int note, int velocity) {
+void Engine::clearHeld() {
+  monoCount_ = 0;
+  monoSlot_ = -1;
+  arpCount_ = 0;
+  arpNote_ = -1;
+  arpFresh_ = true;
+}
+
+// MARK: Arpeggiator
+
+void Engine::keyDown(int note, int velocity) {
+  if (fx_[kArpMode].load(std::memory_order_relaxed) < 0.5f) {
+    playNote(note, velocity);
+    return;
+  }
+  // Keep the held keys sorted, lowest first.
+  int at = 0;
+  while (at < arpCount_ && arp_[at].note < note) at++;
+  if (at < arpCount_ && arp_[at].note == note) {
+    arp_[at].velocity = (uint8_t)velocity;
+    return;
+  }
+  if (arpCount_ == kMaxHeld) return;
+  for (int i = arpCount_; i > at; i--) arp_[i] = arp_[i - 1];
+  arp_[at] = {(uint8_t)note, (uint8_t)velocity};
+  if (arpCount_++ == 0) {
+    // The first key sounds at once.
+    arpFresh_ = true;
+    arpCountdown_ = 0;
+  } else if (at <= arpIndex_) {
+    arpIndex_++;
+  }
+}
+
+void Engine::keyUp(int note) {
+  for (int i = 0; i < arpCount_; i++) {
+    if (arp_[i].note != note) continue;
+    for (int j = i; j < arpCount_ - 1; j++) arp_[j] = arp_[j + 1];
+    arpCount_--;
+    if (i < arpIndex_) arpIndex_--;
+    if (arpCount_ == 0 && arpNote_ >= 0) {
+      releaseNote(arpNote_);
+      arpNote_ = -1;
+    }
+    return;
+  }
+  releaseNote(note);
+}
+
+void Engine::stepArp() {
+  if (arpCount_ == 0) return;
+  const int mode = (int)std::lround(fx_[kArpMode].load(std::memory_order_relaxed));
+  if (mode == 0) {
+    // Switched off with keys down: let go.
+    if (arpNote_ >= 0) releaseNote(arpNote_);
+    arpNote_ = -1;
+    arpCount_ = 0;
+    return;
+  }
+  if (arpNote_ >= 0) {
+    arpGate_ -= N;
+    if (arpGate_ <= 0) {
+      releaseNote(arpNote_);
+      arpNote_ = -1;
+    }
+  }
+  arpCountdown_ -= N;
+  if (arpCountdown_ > 0) return;
+
+  const double tempo = std::clamp((double)fx_[kTempo].load(std::memory_order_relaxed), 40.0, 240.0);
+  const int perBeat = std::clamp((int)std::lround(fx_[kArpRate].load(std::memory_order_relaxed)), 0, 3) + 1;
+  const double step = sampleRate_ * 60.0 / tempo / perBeat;
+  arpCountdown_ = arpCountdown_ < -step ? step : arpCountdown_ + step;
+
+  const int last = arpCount_ - 1;
+  if (arpFresh_) {
+    arpFresh_ = false;
+    arpIndex_ = mode == 2 ? last : 0;
+    arpDirection_ = 1;
+  } else if (mode == 1) {
+    arpIndex_ = arpIndex_ >= last ? 0 : arpIndex_ + 1;
+  } else if (mode == 2) {
+    arpIndex_ = arpIndex_ <= 0 ? last : std::min(arpIndex_ - 1, last);
+  } else if (last == 0) {
+    arpIndex_ = 0;
+  } else {
+    if (arpIndex_ >= last) arpDirection_ = -1;
+    else if (arpIndex_ <= 0) arpDirection_ = 1;
+    arpIndex_ = std::clamp(arpIndex_ + arpDirection_, 0, last);
+  }
+  if (arpNote_ >= 0) releaseNote(arpNote_);
+  arpNote_ = arp_[arpIndex_].note;
+  arpGate_ = step * 0.6;
+  playNote(arpNote_, arp_[arpIndex_].velocity);
+}
+
+// MARK: Mono
+
+void Engine::playNote(int note, int velocity) {
+  if (fx_[kMono].load(std::memory_order_relaxed) < 0.5f) {
+    startNote(note, velocity);
+    return;
+  }
+  for (int i = 0; i < monoCount_; i++) {
+    if (mono_[i].note != note) continue;
+    for (int j = i; j < monoCount_ - 1; j++) mono_[j] = mono_[j + 1];
+    monoCount_--;
+    break;
+  }
+  if (monoCount_ == kMaxHeld) {
+    for (int j = 0; j < monoCount_ - 1; j++) mono_[j] = mono_[j + 1];
+    monoCount_--;
+  }
+  mono_[monoCount_++] = {(uint8_t)note, (uint8_t)velocity};
+
+  const bool legato = monoSlot_ >= 0 && slots_[monoSlot_].active && slots_[monoSlot_].keyDown;
+  if (legato) {
+    const float seconds = fx_[kGlide].load(std::memory_order_relaxed);
+    Slot &slot = slots_[monoSlot_];
+    slot.voice.glideTo(patch_, note, (int)(seconds * sampleRate_ / N));
+    slot.note = note;
+  } else {
+    monoSlot_ = startNote(note, velocity);
+  }
+}
+
+void Engine::releaseNote(int note) {
+  for (int i = 0; i < monoCount_; i++) {
+    if (mono_[i].note != note) continue;
+    for (int j = i; j < monoCount_ - 1; j++) mono_[j] = mono_[j + 1];
+    monoCount_--;
+    const bool sounding = monoSlot_ >= 0 && slots_[monoSlot_].active &&
+                          slots_[monoSlot_].keyDown && slots_[monoSlot_].note == note;
+    if (!sounding) return;
+    if (monoCount_ > 0) {
+      // Fall back to the key still held.
+      const float seconds = fx_[kGlide].load(std::memory_order_relaxed);
+      Slot &slot = slots_[monoSlot_];
+      slot.note = mono_[monoCount_ - 1].note;
+      slot.voice.glideTo(patch_, slot.note, (int)(seconds * sampleRate_ / N));
+    } else {
+      stopNote(note);
+      monoSlot_ = -1;
+    }
+    return;
+  }
+  stopNote(note);
+}
+
+// MARK: Voices
+
+int Engine::startNote(int note, int velocity) {
   Slot *target = nullptr;
   // Retrigger a voice already playing this note.
   for (auto &slot : slots_) {
@@ -240,9 +398,10 @@ void Engine::noteOn(int note, int velocity) {
   target->sustained = false;
   target->note = note;
   target->age = ++clock_;
+  return (int)(target - slots_);
 }
 
-void Engine::noteOff(int note) {
+void Engine::stopNote(int note) {
   for (auto &slot : slots_) {
     if (slot.active && slot.keyDown && slot.note == note) {
       slot.keyDown = false;
@@ -254,6 +413,7 @@ void Engine::noteOff(int note) {
 
 void Engine::allNotesOff() {
   sustain_ = false;
+  clearHeld();
   for (auto &slot : slots_) {
     if (slot.active && (slot.keyDown || slot.sustained)) slot.voice.keyup();
     slot.keyDown = false;
@@ -281,6 +441,7 @@ void Engine::syncParams() {
 
 void Engine::computeBlock() {
   syncParams();
+  stepArp();
 
   mod_.lfoValue = lfo_.getsample();
   mod_.lfoDelay = lfo_.getdelay();
@@ -311,6 +472,7 @@ void Engine::render(float *left, float *right, int frames) {
   if (panic_.exchange(false, std::memory_order_acq_rel)) {
     for (auto &slot : slots_) slot = Slot();
     sustain_ = false;
+    clearHeld();
   }
   drainQueues();
 

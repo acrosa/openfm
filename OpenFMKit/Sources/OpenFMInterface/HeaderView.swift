@@ -13,8 +13,8 @@ struct HeaderView: View {
     @Binding var showBrowser: Bool
     @Binding var mode: InterfaceMode
 
-    /// Where a swipe across the sound name began, and how far the name has
-    /// been pulled since the last step.
+    /// Where a swipe down or up the sound name began, and how far the name
+    /// has been pulled since the last step.
     @State private var swipeStart: Int?
     @State private var swipeOffset: CGFloat = 0
     @GestureState private var isSwiping = false
@@ -97,19 +97,19 @@ struct HeaderView: View {
             }
         }
         .frame(minHeight: 44, alignment: .leading)
-        .offset(x: swipeOffset)
+        .offset(y: swipeOffset)
         .opacity(1 - min(abs(swipeOffset) / swipePitch, 1) * 0.5)
         .contentShape(Rectangle())
-        // Swipe across the name to roll through the sounds, like the octave
-        // dial: pull left for the next one, right for the one before.
+        // Swipe down the name to move down the list of sounds, up to go
+        // back. Vertical, so a thumb can do it without crossing the screen.
         .onTapGesture { showBrowser = true }
         .gesture(
             DragGesture(minimumDistance: 10)
                 .updating($isSwiping) { _, state, _ in state = true }
                 .onChanged { g in
-                    // Sideways only: a vertical drag here means nothing.
-                    guard swipeStart != nil || abs(g.translation.width) > abs(g.translation.height) else { return }
-                    swipe(g.translation.width)
+                    // Up and down only: a sideways drag here means nothing.
+                    guard swipeStart != nil || abs(g.translation.height) > abs(g.translation.width) else { return }
+                    swipe(g.translation.height)
                 }
         )
         .onChange(of: isSwiping) { _, swiping in
@@ -121,7 +121,7 @@ struct HeaderView: View {
         .accessibilityElement()
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Sound: \(model.name)\(model.isEdited ? ", edited" : "")")
-        .accessibilityHint("Opens the sound browser. Swipe sideways for the next or previous sound")
+        .accessibilityHint("Opens the sound browser. Swipe down for the next sound, up for the previous one")
         .accessibilityAdjustableAction { direction in
             if let preset = store.neighbor(of: model.presetID, offset: direction == .increment ? 1 : -1) {
                 model.load(preset.patch, presetID: preset.id)
@@ -137,13 +137,13 @@ struct HeaderView: View {
         }
         guard let swipeStart else { return }
         // One sound per `swipePitch` points; a long swipe passes several.
-        let steps = Int((-distance / swipePitch).rounded(.towardZero))
+        let steps = Int((distance / swipePitch).rounded(.towardZero))
         let target = ((swipeStart + steps) % sounds.count + sounds.count) % sounds.count
         if sounds[target].id != model.presetID {
             model.load(sounds[target].patch, presetID: sounds[target].id)
             Haptics.tick()
         }
-        swipeOffset = (distance + CGFloat(steps) * swipePitch) * 0.5
+        swipeOffset = (distance - CGFloat(steps) * swipePitch) * 0.2
     }
 
     private var presetCaption: String {
@@ -278,10 +278,12 @@ struct ScopeView: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: scenePhase != .active)) { _ in
+            // Read here, not inside the canvas, so each tick hands the canvas
+            // new values and it is drawn again.
+            let count = 1024
+            let samples = model.scope(count: count)
+            let voices = model.activeVoices
             Canvas { context, size in
-                let count = 1024
-                let samples = model.scope(count: count)
-                let voices = model.activeVoices
                 let scopeHeight = size.height - 10
 
                 // Start at a rising zero crossing so the picture holds still.

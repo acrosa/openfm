@@ -36,9 +36,16 @@ public struct Macro: Hashable, Sendable, Identifiable {
     /// How long a held note takes to settle.
     public static let decay = Macro(id: "decay", caption: "DECAY", hint: "Shorter or longer fade while a key is held",
                                     carrier: [.rate2: -28, .rate3: -28], modulator: [.rate2: -20, .rate3: -20])
+    /// How loud a note stays while the key is held. Modulators move less, so
+    /// the held tone keeps its character.
+    public static let sustain = Macro(id: "sustain", caption: "SUSTAIN", hint: "Quieter or fuller while a key is held",
+                                      carrier: [.level3: 60], modulator: [.level3: 25])
     /// How long notes ring after the key is released.
     public static let release = Macro(id: "release", caption: "RELEASE", hint: "Shorter or longer ring after you let go",
                                       carrier: [.rate4: -40], modulator: [.rate4: -30])
 
-    public static let all: [Macro] = [.tone, .attack, .decay, .release]
+    /// The four that shape a note over time, in ADSR order.
+    public static let envelope: [Macro] = [.attack, .decay, .sustain, .release]
+
+    public static let all: [Macro] = [.tone, .attack, .decay, .sustain, .release]
 }

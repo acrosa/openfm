@@ -4,7 +4,7 @@
 import OpenFMCore
 import SwiftUI
 
-/// The simple side of the instrument: see the sound, shape it with eight
+/// The simple side of the instrument: see the sound, shape it with a dozen
 /// controls, pick another, get more in. Everything else lives behind Edit.
 ///
 /// On a large screen the sound list is always there, like a preset player.
@@ -13,26 +13,34 @@ struct PlayPage: View {
     @Environment(SynthModel.self) private var model
     @Environment(PresetStore.self) private var store
     let wide: Bool
-    /// iPad portrait: there is height to spare, so the scope takes it.
+    /// iPad portrait.
     var tall = false
     @Binding var showBrowser: Bool
 
     @State private var isImporting = false
     @State private var importError: String?
 
+    /// iPad landscape: wide enough to set the control rows two abreast.
+    private var abreast: Bool { wide && !tall }
+
     var body: some View {
         Group {
             if wide {
                 HStack(alignment: .top, spacing: 24) {
-                    VStack(alignment: .leading, spacing: Theme.sectionGap) {
-                        output
-                        controls
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: Theme.sectionGap) {
+                            output
+                            controls
+                        }
                     }
+                    .scrollIndicators(.hidden)
+                    .scrollBounceBehavior(.basedOnSize)
                     .frame(maxWidth: .infinity, alignment: .top)
                     VStack(spacing: 8) {
                         SoundList()
                         HStack(spacing: 8) {
                             importButton
+                            varyButton
                             SaveMenu()
                         }
                     }
@@ -47,6 +55,7 @@ struct PlayPage: View {
                             HStack(spacing: 8) {
                                 QuietButton(title: "Sounds", symbol: "square.grid.2x2") { showBrowser = true }
                                 importButton
+                                varyButton
                                 SaveMenu()
                             }
                         }
@@ -73,6 +82,15 @@ struct PlayPage: View {
             .accessibilityHint("Imports DX7 SysEx or OpenFM patch files")
     }
 
+    private var varyButton: some View {
+        QuietButton(title: "Vary", symbol: "dice") {
+            model.vary()
+            model.post(title: "VARIED", value: "Undo steps back")
+            model.audition()
+        }
+        .accessibilityHint("Nudges the sound into a near relative of itself")
+    }
+
     private var output: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center) {
@@ -81,34 +99,66 @@ struct PlayPage: View {
                 OperatorMarks()
             }
             .frame(height: 16)
-            // Live output while playing; the predicted wave when silent, so
-            // the Shape controls show their effect even before a key is pressed.
-            ScopeView(idleWave: Algorithm.previewWave(bytes: model.bytes))
-                .padding(16)
-                .frame(maxWidth: .infinity)
-                .frame(height: tall ? 320 : (wide ? 168 : 112))
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
+            // A glance, not a centrepiece: how a note rises and fades, and
+            // what is coming out. The controls get the room.
+            HStack(spacing: abreast ? 16 : 8) {
+                EnvelopeShape()
+                    .frame(maxWidth: .infinity)
+                    .background(Theme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
+                // Live output while playing; the predicted wave when silent.
+                ScopeView(idleWave: Algorithm.previewWave(bytes: model.bytes))
+                    .padding(12)
+                    .frame(maxWidth: .infinity)
+                    .background(Theme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
+            }
+            .frame(height: wide ? 96 : 72)
         }
     }
 
+    private func adjusted(_ macros: [Macro]) -> Bool {
+        macros.contains { model.value($0) != 0 }
+    }
+
+    @ViewBuilder
     private var controls: some View {
-        VStack(alignment: .leading, spacing: Theme.sectionGap) {
-            VStack(alignment: .leading, spacing: 8) {
-                SectionHeader(title: "Shape", detail: model.macroValues.values.contains { $0 != 0 } ? "ADJUSTED" : nil)
-                FieldGrid(columns: 4) {
-                    ForEach(Macro.all) { MacroField(macro: $0) }
-                }
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                SectionHeader(title: "Space")
-                FieldGrid(columns: 4) {
-                    DragField(param: .chorusMix, caption: "CHORUS")
-                    DragField(param: .delayMix, caption: "ECHO")
-                    DragField(param: .reverbMix, caption: "REVERB")
-                    DragField(param: .volume)
-                }
-            }
+        let envelope = group("Envelope", detail: adjusted(Macro.envelope) ? "ADJUSTED" : "ADSR") {
+            ForEach(Macro.envelope) { MacroField(macro: $0) }
+        }
+        let timbre = group("Timbre", detail: adjusted([.tone]) ? "ADJUSTED" : nil) {
+            MacroField(macro: .tone)
+            DragField(param: .feedback)
+            DragField(param: .lfoPitchDepth, caption: "VIBRATO")
+            DragField(param: .transpose)
+        }
+        let space = group("Space") {
+            DragField(param: .chorusMix, caption: "CHORUS")
+            DragField(param: .delayMix, caption: "ECHO")
+            DragField(param: .reverbMix, caption: "REVERB")
+            DragField(param: .volume)
+        }
+        let playing = group("Playing") {
+            DragField(param: .mono)
+            DragField(param: .glide)
+            DragField(param: .arpMode)
+            DragField(param: .arpRate)
+        }
+        if abreast {
+            HStack(alignment: .top, spacing: 16) { envelope; timbre }
+            HStack(alignment: .top, spacing: 16) { space; playing }
+        } else {
+            envelope
+            timbre
+            space
+            playing
+        }
+    }
+
+    private func group(_ title: String, detail: String? = nil, @ViewBuilder cells: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: title, detail: detail)
+            FieldGrid(columns: 4, content: cells)
         }
     }
 }

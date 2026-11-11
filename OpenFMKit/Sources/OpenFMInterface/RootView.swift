@@ -10,7 +10,7 @@ import SwiftUI
 /// controls, **Edit** shows everything.
 ///
 /// - wide: header, routing diagram beside the editor, keyboard (iPad landscape)
-/// - tall: header, diagram above the editor, keyboard (iPad portrait)
+/// - tall: header, a slim diagram strip above the editor, keyboard (iPad portrait)
 /// - compact: header, one page at a time, keyboard (iPhone portrait)
 /// - short: like wide with a slim keyboard (iPhone landscape, plug-in windows)
 struct RootView: View {
@@ -50,7 +50,7 @@ struct RootView: View {
                     LooperStrip(looper: looper)
                     Theme.line.frame(height: 1)
                 }
-                KeyboardSection()
+                KeyboardSection(compact: mode == .compact, wheels: mode != .compact)
                     .frame(height: keyboardHeight(mode, size: geo.size) * (playing && mode != .short ? 1.25 : 1))
             }
         }
@@ -96,8 +96,8 @@ struct RootView: View {
             }
         case .tall:
             VStack(spacing: 0) {
-                AlgorithmPanel()
-                    .frame(height: min(max(size.height * 0.34, 340), 420))
+                AlgorithmPanel(sideways: true)
+                    .frame(height: min(max(size.height * 0.2, 216), 248))
                 Theme.line.frame(height: 1)
                 DetailPanel(page: $page, pages: [.operators, .motion, .effects], columns: 8, wideEffects: true)
             }

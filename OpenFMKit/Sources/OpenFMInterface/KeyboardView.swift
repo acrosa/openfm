@@ -5,60 +5,77 @@ import OpenFMCore
 import SwiftUI
 import UIKit
 
-/// The playing surface: a multi-touch keyboard with an octave shifter and a
-/// hold switch. Touch lower on a key to play louder; slide to glide across
+/// The playing surface: a multi-touch keyboard with an octave shifter, undo,
+/// mono, arpeggiator and hold switches, and bend and modulation strips. Touch lower on a key to play louder; slide to glide across
 /// keys.
 struct KeyboardSection: View {
     @Environment(SynthModel.self) private var model
     @Environment(\.isPlugIn) private var isPlugIn
+    /// A phone in portrait: only the essentials fit above the keys.
+    var compact = false
+    /// Bend and modulation strips to the left of the keys.
+    var wheels = false
     @State private var octave = 3
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 16) {
+            HStack(spacing: compact ? 8 : 16) {
                 OctaveDial(octave: $octave)
-                Text("OCTAVE").labelStyle(9)
-                if isPlugIn {
+                if !compact { Text("OCTAVE").labelStyle(9) }
+                UndoButtons()
+                if isPlugIn, !compact {
                     // Most hosts only record their own keyboard.
                     Text("FOR TRYING SOUNDS · RECORD WITH THE HOST’S KEYBOARD")
                         .labelStyle(9, color: Theme.accent)
-                        .padding(.leading, 8)
                 }
 
                 Spacer(minLength: 0)
 
-                let hold = model.isHolding
-                Button {
-                    model.setHold(!hold)
-                    Haptics.tap()
-                } label: {
-                    Text("HOLD")
-                        .labelStyle(9, color: hold ? Theme.background : Theme.secondary)
-                        .padding(.horizontal, 12)
-                        .frame(height: 24)
-                        .background(hold ? Theme.accent : Theme.surface, in: Capsule())
-                        .frame(minWidth: 64, minHeight: 44)
-                        .contentShape(Rectangle())
+                HStack(spacing: 0) {
+                    if !compact {
+                        let mono = model.value(.mono) == 1
+                        BarToggle(title: "MONO", label: "Mono", hint: "One note at a time; overlapping notes slide",
+                                  isOn: mono) {
+                            model.set(.mono, to: mono ? 0 : 1)
+                            model.peek(.mono)
+                        }
+                        let arp = model.value(.arpMode)
+                        BarToggle(title: arp == 0 ? "ARP" : "ARP \(model.string(.arpMode))", label: "Arpeggiator",
+                                  hint: "Plays held keys one after another. Tap to change direction",
+                                  value: model.string(.arpMode), isOn: arp != 0) {
+                            model.set(.arpMode, to: arp >= Param.arpMode.range.upperBound ? 0 : arp + 1)
+                            model.peek(.arpMode)
+                        }
+                    }
+                    let hold = model.isHolding
+                    BarToggle(title: "HOLD", label: "Hold", hint: "Keeps notes sounding until you play something else",
+                              isOn: hold) {
+                        model.setHold(!hold)
+                    }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Hold")
-                .accessibilityHint("Keeps notes sounding until you play something else")
-                .accessibilityAddTraits(hold ? [.isSelected] : [])
             }
             .padding(.horizontal, Theme.gutter)
             .frame(height: 44)
 
-            KeyboardView(lowestNote: (octave + 2) * 12,
-                         latched: model.latchedNotes,
-                         noteOn: { note, velocity in model.noteOn(note, velocity: velocity) },
-                         noteOff: { note in model.noteOff(note) },
-                         shiftOctave: { delta in
-                             let next = min(max(octave + delta, 0), 7)
-                             if next == octave { Haptics.bump() } else { octave = next }
-                         })
-                .accessibilityElement()
-                .accessibilityLabel("Keyboard")
-                .accessibilityAddTraits(.allowsDirectInteraction)
+            HStack(spacing: 0) {
+                if wheels {
+                    Wheels()
+                        .padding(.leading, Theme.gutter)
+                        .padding(.trailing, 8)
+                        .padding(.bottom, 8)
+                }
+                KeyboardView(lowestNote: (octave + 2) * 12,
+                             latched: model.latchedNotes,
+                             noteOn: { note, velocity in model.noteOn(note, velocity: velocity) },
+                             noteOff: { note in model.noteOff(note) },
+                             shiftOctave: { delta in
+                                 let next = min(max(octave + delta, 0), 7)
+                                 if next == octave { Haptics.bump() } else { octave = next }
+                             })
+                    .accessibilityElement()
+                    .accessibilityLabel("Keyboard")
+                    .accessibilityAddTraits(.allowsDirectInteraction)
+            }
         }
     }
 }

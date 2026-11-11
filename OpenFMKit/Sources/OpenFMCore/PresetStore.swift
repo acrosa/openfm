@@ -20,7 +20,10 @@ public struct Preset: Identifiable, Equatable, Codable, Sendable {
 public final class PresetStore {
     public private(set) var factory: [Preset]
     public private(set) var user: [Preset] = []
+    /// Identifiers of the sounds marked as favourites.
+    public private(set) var favourites: Set<String> = []
     @ObservationIgnored private let fileURL: URL?
+    @ObservationIgnored private let favouritesURL: URL?
 
     public var all: [Preset] { factory + user }
 
@@ -33,6 +36,28 @@ public final class PresetStore {
            let saved = try? JSONDecoder().decode([Preset].self, from: data) {
             user = saved
         }
+        favouritesURL = directory?.appendingPathComponent("Favourites.json")
+        if let favouritesURL, let data = try? Data(contentsOf: favouritesURL),
+           let saved = try? JSONDecoder().decode([String].self, from: data) {
+            favourites = Set(saved)
+        }
+    }
+
+    // MARK: Favourites
+
+    public func isFavourite(_ preset: Preset) -> Bool { favourites.contains(preset.id) }
+
+    public func toggleFavourite(_ preset: Preset) {
+        if favourites.remove(preset.id) == nil { favourites.insert(preset.id) }
+        persistFavourites()
+    }
+
+    /// Favourites in library order.
+    public var favouritePresets: [Preset] { all.filter { favourites.contains($0.id) } }
+
+    private func persistFavourites() {
+        guard let favouritesURL, let data = try? JSONEncoder().encode(favourites.sorted()) else { return }
+        try? data.write(to: favouritesURL, options: .atomic)
     }
 
     public static var defaultDirectory: URL? {
@@ -90,6 +115,7 @@ public final class PresetStore {
 
     public func delete(_ preset: Preset) {
         user.removeAll { $0.id == preset.id }
+        if favourites.remove(preset.id) != nil { persistFavourites() }
         persist()
     }
 

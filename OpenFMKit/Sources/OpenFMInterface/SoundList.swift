@@ -89,10 +89,14 @@ struct SoundList: View {
     @Environment(PresetStore.self) private var store
     @State private var search = ""
 
+    private static let favouritesTitle = "Favourites"
+
     private var sections: [(title: String, presets: [Preset])] {
         let query = search.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return store.sections }
-        return store.sections.compactMap { section in
+        // Favourites are repeated at the top, where they are quick to reach.
+        let all = [(title: SoundList.favouritesTitle, presets: store.favouritePresets)] + store.sections
+        return all.compactMap { section in
+            guard !query.isEmpty else { return section.presets.isEmpty ? nil : section }
             let matches = section.presets.filter { $0.patch.name.localizedCaseInsensitiveContains(query) }
             return matches.isEmpty ? nil : (section.title, matches)
         }
@@ -132,7 +136,8 @@ struct SoundList: View {
                                 .frame(height: 32, alignment: .bottomLeading)
                                 .padding(.bottom, 6)
                             ForEach(section.presets) { preset in
-                                row(preset).id(preset.id)
+                                row(preset)
+                                    .id(section.title == SoundList.favouritesTitle ? "favourite/\(preset.id)" : preset.id)
                             }
                         }
                         if sections.isEmpty {
@@ -159,10 +164,37 @@ struct SoundList: View {
 
     private func row(_ preset: Preset) -> some View {
         let current = model.presetID == preset.id
-        return Button {
-            model.load(preset.patch, presetID: preset.id)
-            Haptics.tick()
-        } label: {
+        let favourite = store.isFavourite(preset)
+        return HStack(spacing: 0) {
+            Button {
+                model.load(preset.patch, presetID: preset.id)
+                Haptics.tick()
+            } label: {
+                soundLabel(preset, current: current)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(preset.patch.name)
+            .accessibilityAddTraits(current ? [.isSelected] : [])
+
+            Button {
+                store.toggleFavourite(preset)
+                Haptics.tap()
+            } label: {
+                Image(systemName: favourite ? "star.fill" : "star")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(favourite ? Theme.accent : Theme.tertiary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Favourite, \(preset.patch.name)")
+            .accessibilityAddTraits(favourite ? [.isSelected] : [])
+        }
+        .background(current ? Theme.raised : Color.clear)
+    }
+
+    private func soundLabel(_ preset: Preset, current: Bool) -> some View {
+        HStack(spacing: 0) {
             HStack(spacing: 12) {
                 Theme.accent.frame(width: 2, height: 20).opacity(current ? 1 : 0)
                 Text(preset.patch.name)
@@ -173,14 +205,9 @@ struct SoundList: View {
                 AlgorithmGlyph(algorithm: .number(preset.patch.algorithm), color: current ? Theme.accent : Theme.secondary)
                     .frame(width: 36, height: 24)
             }
-            .padding(.trailing, 12)
             .frame(height: 44)
-            .background(current ? Theme.raised : Color.clear)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(preset.patch.name)
-        .accessibilityAddTraits(current ? [.isSelected] : [])
     }
 }
 

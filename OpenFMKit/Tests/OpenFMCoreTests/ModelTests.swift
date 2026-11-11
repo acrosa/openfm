@@ -94,17 +94,135 @@ final class ModelTests: XCTestCase {
         model.set(Macro.attack, to: 0.5)
         XCTAssertLessThan(model.value(.op(1, .rate1)), Double(patch.operators[0].envelope.rates[0]))
 
+        // Sustain raises the held level, carriers more than modulators.
+        model.set(Macro.sustain, to: 0.5)
+        XCTAssertEqual(model.value(.op(1, .level3)), min(99, Double(patch.operators[0].envelope.levels[2]) + 30))
+        XCTAssertEqual(Macro.envelope.map(\.caption), ["ATTACK", "DECAY", "SUSTAIN", "RELEASE"])
+
         // Back to zero is exactly the designed sound.
         model.set(Macro.tone, to: 0)
         model.set(Macro.attack, to: 0)
+        model.set(Macro.sustain, to: 0)
         XCTAssertEqual(model.bytes, before)
 
-        // A hand edit becomes the new starting point.
+        // A hand edit moves the starting point and leaves the macros alone.
         model.set(Macro.tone, to: -1)
         model.set(.op(2, .level), to: 50)
-        XCTAssertEqual(model.value(Macro.tone), 0)
-        model.set(Macro.tone, to: 1)
+        model.set(.feedback, to: 2)
+        XCTAssertEqual(model.value(Macro.tone), -1)
+        XCTAssertEqual(model.value(.op(2, .level)), 50)
+        model.set(Macro.tone, to: 0)
         XCTAssertEqual(model.value(.op(2, .level)), 72)
+        model.set(Macro.tone, to: 1)
+        XCTAssertEqual(model.value(.op(2, .level)), 94)
+
+        // A new algorithm changes which operators are modulators: start over.
+        model.set(.algorithm, to: 0)
+        XCTAssertEqual(model.value(Macro.tone), 0)
+    }
+
+    func testUndoStepsBackOneGestureAtATime() throws {
+        let model = try makeModel()
+        model.load(FactoryPresets.all[0])
+        let original = model.bytes
+        XCTAssertFalse(model.canUndo)
+
+        // A drag is many writes and one step.
+        model.beginEditing(.op(1, .level))
+        for v in stride(from: 90.0, through: 60, by: -5) { model.set(.op(1, .level), to: v) }
+        model.endEditing()
+        let dragged = model.bytes
+        // A tap outside a gesture is a step of its own.
+        model.set(.feedback, to: 0)
+        // Volume is not part of the sound: touching it adds no step.
+        model.beginEditing(.volume)
+        model.set(.volume, to: 0.3)
+        model.endEditing()
+        // Neither does a gesture that changes nothing.
+        model.beginEditing(.op(2, .level))
+        model.endEditing()
+
+        model.undo()
+        XCTAssertEqual(model.bytes, dragged)
+        XCTAssertEqual(model.value(.volume), 0.3, accuracy: 1e-6)
+        model.undo()
+        XCTAssertEqual(model.bytes, original)
+        XCTAssertFalse(model.isEdited)
+        XCTAssertFalse(model.canUndo)
+        XCTAssertEqual([UInt8](model.audioUnit.patchData()), original, "undo reaches the engine")
+
+        model.redo()
+        XCTAssertEqual(model.bytes, dragged)
+        XCTAssertTrue(model.isEdited)
+        // A new edit drops what could have been redone.
+        model.set(.feedback, to: 7)
+        XCTAssertFalse(model.canRedo)
+
+        // Macros come back with the sound they belong to.
+        model.beginEditing(Macro.tone)
+        model.set(Macro.tone, to: 0.5)
+        model.endEditing()
+        model.undo()
+        XCTAssertEqual(model.value(Macro.tone), 0)
+        model.redo()
+        XCTAssertEqual(model.value(Macro.tone), 0.5)
+
+        // Revert can be undone; loading another sound starts a new history.
+        let edited = model.bytes
+        model.revert()
+        XCTAssertEqual(model.bytes, original)
+        model.undo()
+        XCTAssertEqual(model.bytes, edited)
+        model.load(FactoryPresets.all[1])
+        XCTAssertFalse(model.canUndo)
+    }
+
+    func testVaryMakesANearRelativeInOneUndoStep() throws {
+        struct Counter: RandomNumberGenerator {
+            var state: UInt64 = 0x9e3779b97f4a7c15
+            mutating func next() -> UInt64 {
+                state = state &* 6364136223846793005 &+ 1442695040888963407
+                return state
+            }
+        }
+        let model = try makeModel()
+        let patch = FactoryPresets.all[0]
+        model.load(patch)
+        let original = model.bytes
+        var generator = Counter()
+        model.vary(amount: 1, using: &generator)
+
+        XCTAssertNotEqual(model.bytes, original)
+        XCTAssertEqual(model.value(.algorithm), Double(original[134]), "routing is kept")
+        for op in model.algorithm.carriers {
+            XCTAssertEqual(model.value(.op(op, .level)), Double(patch.operators[op - 1].level), "carriers keep their level")
+            XCTAssertEqual(model.value(.op(op, .coarse)), Double(original[(6 - op) * 21 + 18]), "carriers stay in tune")
+        }
+        model.undo()
+        XCTAssertEqual(model.bytes, original)
+        XCTAssertFalse(model.canUndo)
+    }
+
+    func testPerformanceControlsReachTheEngine() throws {
+        let model = try makeModel()
+        model.set(.mono, to: 1)
+        model.set(.arpMode, to: 2)
+        XCTAssertEqual(model.audioUnit.value(forAddress: 211), 1)
+        XCTAssertEqual(model.audioUnit.value(forAddress: 213), 2)
+        XCTAssertEqual(model.string(.arpMode), "DOWN")
+        XCTAssertFalse(model.canUndo, "playing settings are not sound edits")
+        XCTAssertFalse(model.isEdited)
+        model.setPitchBend(2)
+        XCTAssertEqual(model.pitchBend, 1)
+        model.setModWheel(-1)
+        XCTAssertEqual(model.modWheel, 0)
+
+        model.load(FactoryPresets.all[0])   // algorithm 5: carriers 1, 3, 5
+        model.set(.op(1, .level), to: 40)
+        model.set(.op(3, .level), to: 99)
+        XCTAssertEqual(model.mainCarrier, 3)
+        model.toggle(3)
+        XCTAssertNotEqual(model.mainCarrier, 3)
     }
 
     /// Hold is a latch: the next phrase replaces the held one, so notes
@@ -345,7 +463,17 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(reopened.user.map(\.patch.name), ["Mine"])
         XCTAssertFalse(reopened.user[0].isFactory)
 
-        reopened.delete(reopened.user[0])
+        // Favourites are remembered, and forgotten with the sound.
+        reopened.toggleFavourite(reopened.user[0])
+        reopened.toggleFavourite(reopened.factory[2])
+        reopened.toggleFavourite(reopened.factory[1])
+        reopened.toggleFavourite(reopened.factory[1])
+        let again = PresetStore(directory: directory)
+        XCTAssertEqual(again.favouritePresets.map(\.id), [again.factory[2].id, again.user[0].id])
+        XCTAssertTrue(again.isFavourite(again.user[0]))
+
+        again.delete(again.user[0])
+        XCTAssertEqual(PresetStore(directory: directory).favourites, [again.factory[2].id])
         XCTAssertTrue(PresetStore(directory: directory).user.isEmpty)
         XCTAssertThrowsError(try store.importSysEx(Data([0, 1, 2]), named: "bad"))
     }

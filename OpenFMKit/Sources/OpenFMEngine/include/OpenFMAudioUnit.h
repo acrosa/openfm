@@ -25,6 +25,11 @@ typedef NS_ENUM(AUParameterAddress, OpenFMAddress) {
     OpenFMAddressReverbDamp,
     OpenFMAddressVolume,
     OpenFMAddressBendRange,
+    OpenFMAddressMono,
+    OpenFMAddressGlide,
+    OpenFMAddressArpMode,
+    OpenFMAddressArpRate,
+    OpenFMAddressTempo,
     OpenFMAddressEffectEnd,
 };
 
@@ -75,6 +80,8 @@ NS_SWIFT_SENDABLE
 - (void)noteOn:(uint8_t)note velocity:(uint8_t)velocity NS_SWIFT_NAME(noteOn(_:velocity:));
 - (void)noteOff:(uint8_t)note NS_SWIFT_NAME(noteOff(_:));
 - (void)sendController:(uint8_t)controller value:(uint8_t)value;
+/// Pitch bend from an on-screen control: 0...16383, 8192 is centre.
+- (void)sendPitchBend:(uint16_t)value;
 /// External MIDI received outside the render cycle. Call from one thread only.
 - (void)receiveMIDIStatus:(uint8_t)status data1:(uint8_t)data1 data2:(uint8_t)data2;
 - (void)panic;
