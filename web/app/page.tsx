@@ -3,9 +3,10 @@ import { Footer, GitHubButton, Nav } from "@/components/Chrome";
 import { Showcase } from "@/components/Showcase";
 
 const features = [
-  ["Play first", "Opens on a sound, a keyboard and eight controls. Pick, shape, play. Nothing to learn before the first note."],
+  ["Play first", "Opens on a sound, a keyboard and a handful of controls. Pick, shape, play. Nothing to learn before the first note."],
   ["Drag everything", "Operators, envelopes and effects are things you move. Whatever you touch lights up, along with everything it changes."],
   ["Six operators, 32 algorithms", "The classic FM voice in full: 16 voices, LFO, feedback, velocity, keyboard scaling, chorus, delay and reverb."],
+  ["Made for hands", "Bend and modulation strips beside the keys, mono with glide, an arpeggiator and hold. Undo is always one tap away."],
   ["Loop it", "A four-layer loop recorder sits above the keyboard. Each layer keeps its own sound, so one device makes a whole track."],
   ["Bring your patches", "Import DX7 SysEx banks and single voices. Share any sound as a small, readable file."],
   ["Standalone and AUv3", "Plug into speakers or a mixer and play from any MIDI keyboard, or load it in your iPad DAW with full automation."],

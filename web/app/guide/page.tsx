@@ -14,26 +14,32 @@ export const metadata: Metadata = {
 const at = (x: number, y: number) => ({ x: (x / 1600) * 100, y: (y / 1153) * 100 });
 
 const playSpots: Spot[] = [
-  { ...at(105, 66), title: "The sound", body: "The name of what you are playing. Swipe across it to roll to the next or previous sound; tap it to open the full browser. EDITED appears in lime once you change anything." },
+  { ...at(105, 66), title: "The sound", body: "The name of what you are playing. Swipe down on it for the next sound, up for the previous one; tap it to open the full browser. EDITED appears in lime once you change anything." },
   { ...at(383, 52), title: "Previous · next", body: "Step through every sound without leaving the keyboard." },
   { ...at(780, 66), title: "Readout", body: "Names the control under your finger, shows its value, and says in plain words what it does. Tap any control once to read about it without changing it." },
   { ...at(1505, 52), title: "Play · Edit", body: "Play is this screen. Edit opens the whole synthesizer. The app always opens in Play." },
-  { ...at(520, 285), title: "Output", body: "The sound's waveform. It is live while you play, and when silent it previews the shape, so you can see a control working before you press a key." },
+  { ...at(268, 233), title: "Envelope picture", body: "How a note rises and fades, drawn from the loudest carrier. It bends as you move Attack, Decay, Sustain and Release. KEY OFF is where you let go." },
+  { ...at(773, 233), title: "Output", body: "The sound's waveform. It is live while you play, and when silent it previews the shape, so you can see a control working before you press a key. The marks underneath are the sixteen voices." },
   { ...at(958, 145), title: "Operator marks", body: "Six squares, one per operator. Filled ones are heard; outlined ones shape the tone. They light up to show which operators a control reaches." },
-  { ...at(395, 506), title: "Shape", body: "Four macros. Tone is darker ↔ brighter; Attack, Decay and Release change how a note starts, settles and ends. Zero means “as the sound was designed”. Double-tap to go back." },
-  { ...at(395, 655), title: "Space", body: "Chorus thickens, Echo repeats, Reverb puts it in a room. Each is how much of that effect you hear. Volume is the master level." },
-  { ...at(1310, 440), title: "Sounds", body: "The library, always there on iPad. Tap a name and it is loaded. Your own and imported sounds sit above the factory ones." },
-  { ...at(1310, 668), title: "Import · Save", body: "Import reads DX7 .syx banks and OpenFM patch files. Save keeps your version; its menu also has Revert to Original." },
-  { ...at(680, 766), title: "Loop recorder", body: "Record what you play and it loops. Here three layers are playing: a kick, a hat and a bass, each with its own sound. See “The loop recorder” below." },
-  { ...at(117, 836), title: "Octave dial", body: "Swipe sideways to roll the keyboard up or down an octave. Tapping either side steps once." },
-  { ...at(1528, 836), title: "Hold", body: "Keeps what you played sounding after you let go. The next note or chord you play replaces it, so nothing piles up. Held keys stay softly lit." },
-  { ...at(800, 1000), title: "Keyboard", body: "Touch lower on a key to play louder. Slide to glide between notes. With a hardware keyboard, A S D F… are the white keys and Z / X change octave." },
+  { ...at(268, 407), title: "Envelope", body: "Attack, Decay, Sustain and Release: how a note starts, settles, holds and ends. Zero means “as the sound was designed”. Double-tap to go back." },
+  { ...at(773, 407), title: "Timbre", body: "Tone is darker ↔ brighter. Feedback adds edge, Vibrato adds a slow pitch wobble, Transpose shifts the whole keyboard in semitones." },
+  { ...at(268, 557), title: "Space", body: "Chorus thickens, Echo repeats, Reverb puts it in a room. Each is how much of that effect you hear. Volume is the master level." },
+  { ...at(773, 557), title: "Playing", body: "How notes are played, not how they sound. Voices switches between chords and one note at a time; Glide is how long overlapping notes take to slide; Arp plays held keys one after another, at Arp Rate steps per beat." },
+  { ...at(1262, 444), title: "Sounds", body: "The library, always there on iPad. Tap a name and it is loaded. Your own and imported sounds sit above the factory ones." },
+  { ...at(1542, 384), title: "Favourites", body: "Tap a star and the sound is repeated in a Favourites group at the top of the list. On iPhone, swipe a row to the right in the browser." },
+  { ...at(1309, 655), title: "Import · Vary · Save", body: "Import reads DX7 .syx banks and OpenFM patch files. Vary nudges the sound into a near relative of itself and plays it; undo steps back. Save keeps your version; its menu also has Revert to Original." },
+  { ...at(676, 754), title: "Loop recorder", body: "Record what you play and it loops. Here three layers are playing: a kick, a hat and a bass, each with its own sound. See “The loop recorder” below." },
+  { ...at(118, 824), title: "Octave dial", body: "Swipe sideways to roll the keyboard up or down an octave. Tapping either side steps once." },
+  { ...at(358, 824), title: "Undo · redo", body: "Steps back through your edits to the sound: a whole drag, a tap or one Vary at a time. Loading another sound starts a new history." },
+  { ...at(1455, 824), title: "Mono · Arp · Hold", body: "Mono and Arp are the same switches as in Playing, next to your hands; tap Arp again to change direction. Hold keeps what you played sounding after you let go, and the next note or chord replaces it." },
+  { ...at(91, 996), title: "Bend · Mod", body: "Touch strips in place of a keyboard's wheels. Bend slides the pitch and springs back when you let go; Mod adds vibrato and stays where you leave it. On iPhone they appear in landscape." },
+  { ...at(800, 978), title: "Keyboard", body: "Touch lower on a key to play louder. Slide to move between notes. With a hardware keyboard, A S D F… are the white keys and Z / X change octave." },
 ];
 
 const editSpots: Spot[] = [
   { ...at(58, 184), title: "Algorithm", body: "Which operator feeds which: one of 32 wirings. Drag the number sideways to scrub through them and watch the diagram rearrange; tap it to see all 32." },
   { ...at(470, 176), title: "Feedback", body: "Lets one operator modulate itself. A little adds edge, a lot adds noise. The loop it applies to is drawn on the diagram." },
-  { ...at(220, 385), title: "Routing diagram", body: "Bottom row: carriers, the operators you hear. Above them: modulators, which change the tone of whatever they point at. The fill inside each box is its level." },
+  { ...at(155, 400), title: "Routing diagram", body: "Bottom row: carriers, the operators you hear. Above them: modulators, which change the tone of whatever they point at. The fill inside each box is its level." },
   { ...at(420, 300), title: "Dragging an operator", body: "Up/down sets level, sideways sets ratio, double-tap switches it off. Here OP 6 is being dragged: it, the operator it modulates and the path between them light up." },
   { ...at(287, 712), title: "Wave", body: "One cycle of the result, redrawn as you edit." },
   { ...at(700, 66), title: "Readout", body: "“Modulator · brightness of OP 5”. The hint changes with the algorithm, so it always describes this operator in this sound." },
@@ -44,6 +50,7 @@ const editSpots: Spot[] = [
   { ...at(840, 742), title: "Frequency", body: "Ratio mode follows the keyboard (×2.00 is an octave up). Fixed mode stays at one pitch regardless of the key, which is good for clicks and drones." },
   { ...at(1335, 742), title: "Level", body: "Output level, plus how much playing harder (Velocity) and the LFO (Amp Mod) affect it." },
   { ...at(680, 825), title: "Loop recorder", body: "The loops keep playing while you edit, so you can shape a sound against the beat it will sit in." },
+  { ...at(358, 895), title: "Undo · redo", body: "Every drag in the editor is one step back. Editing by hand leaves the Play screen's macros where they were." },
 ];
 
 const loopSpots: Spot[] = [
@@ -155,16 +162,31 @@ export default function Guide() {
             <p className="label">03 · Interface</p>
             <h2>The Play screen</h2>
             <p className="prose">
-              Where the app opens. A sound, eight controls, a loop recorder and a keyboard. Tap a number to see what it is. In this
+              Where the app opens. A sound, sixteen controls, a loop recorder and a keyboard. Tap a number to see what it is. In this
               picture <strong>Tone</strong> is being dragged, so it is lit, and so is everything it affects.
             </p>
-            <Annotated src="/screens/ipad-play-3.jpg" width={1800} height={1298} spots={playSpots}
+            <Annotated src="/screens/ipad-play-4.jpg" width={1800} height={1298} spots={playSpots}
               alt="OpenFM Play screen on iPad with numbered marks on each control." />
             <h3>One gesture for every value</h3>
             <p className="prose">
               <strong>Drag sideways</strong> to change. <strong>Tap</strong> to read what it is.{" "}
               <strong>Double-tap</strong> to put it back. Dragging up and down scrolls the page, so you can't change a
               value by accident while scrolling.
+            </p>
+            <h3>One note at a time, or one after another</h3>
+            <p className="prose">
+              Set <strong>Voices</strong> to Mono for basses and leads: play a second key before letting go of the
+              first and the note slides there instead of starting again, over the <strong>Glide</strong> time. Let go
+              and it falls back to the key you are still holding. <strong>Arp</strong> turns a held chord into a
+              pattern, up, down or both, in time with the loop recorder's tempo; with <strong>Hold</strong> on it keeps
+              going while you reach for other controls. These settings belong to the instrument, not to a sound, so
+              they stay as you move through the library.
+            </p>
+            <h3>Try things, then step back</h3>
+            <p className="prose">
+              <strong>Vary</strong> makes a near relative of the sound you have: a little brighter or darker, a little
+              faster or slower, now and then a new harmonic. Tap it until something catches your ear. Every tap, and
+              every drag anywhere in the app, is one press of <strong>undo</strong> above the keys.
             </p>
           </section>
 
@@ -175,7 +197,7 @@ export default function Guide() {
               The whole synthesizer. The diagram on the left is the sound's wiring and also its main control: you drag
               the operators themselves.
             </p>
-            <Annotated src="/screens/ipad-edit-3.jpg" width={1800} height={1298} spots={editSpots}
+            <Annotated src="/screens/ipad-edit-4.jpg" width={1800} height={1298} spots={editSpots}
               alt="OpenFM Edit screen on iPad with numbered marks on the routing diagram, envelope and value cells." />
             <h3>Reading the highlight</h3>
             <p className="prose">
@@ -294,7 +316,7 @@ export default function Guide() {
               </div></li>
               <li><div>
                 <div className="do">Back in <K>PLAY</K>: <K>SAVE</K> → Save… → “Rust Bass”.</div>
-                <div className="why">Too tame? Push <K>TONE</K> up. Too harsh? Pull it down. That is what the macros are for.</div>
+                <div className="why">Too tame? Push <K>TONE</K> up. Too harsh? Pull it down. That is what the macros are for. For a bass line that slides between notes, set <K>VOICES MONO</K>.</div>
               </div></li>
             </ol>
 
@@ -389,12 +411,6 @@ export default function Guide() {
                 <div className="why">That is the whole trick: a few short loops, switched on and off, are a song.</div>
               </div></li>
             </ol>
-            <p className="prose" style={{ marginTop: 20 }}>
-              Menu names move around a little between GarageBand versions. Other hosts work the same way:{" "}
-              <strong>AUM</strong> or <strong>Loopy Pro</strong> for live looping, <strong>Logic Pro</strong> or{" "}
-              <strong>Cubasis</strong> for full songs. Every OpenFM control can be automated from the host. The plug-in
-              is new, so if a host misbehaves, please open an issue on GitHub.
-            </p>
             <p className="prose" style={{ marginTop: 20 }}>
               Menu names move around a little between GarageBand versions. Other hosts work the same way:{" "}
               <strong>AUM</strong> or <strong>Loopy Pro</strong> for live looping, <strong>Logic Pro</strong> or{" "}
